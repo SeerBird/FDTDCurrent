@@ -1,2 +1,4 @@
 release.ps1
-release.ps1
+.pypirc
+/dist
+/.idea

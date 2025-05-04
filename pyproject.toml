@@ -1,9 +1,10 @@
 [build-system]
-requires = ["hatchling >= 1.26"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 [project]
-name = "fdtd_fun"
-version = "0.0.3"
+name = "fdtd_fun" # obv change the name here but remember to change the package name in the file tree accordingly
+version = "0.0.5"
+dependencies = ["numpy"]
 authors = [
   { name="SeerBird", email="ilya.govorunov@gmail.com" }, # everyone get your details on here at some point if you want
 ]
@@ -17,13 +18,7 @@ classifiers = [
 ]
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
-
 [project.urls]
 Homepage = "https://github.com/SeerBird/ChargeRedistribution"
 Issues = "https://github.com/SeerBird/ChargeRedistribution/issues"
-[tool.hatch.build.targets.sdist]
-include = [
-  "/fdtd_fun",
-]
-exclude = [
-]
+
