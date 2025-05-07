@@ -3,14 +3,9 @@ ignore-vcs = true
 include = [
   "/fdtd_fun",
 ]
-exclude = [
-  ".gitignore",
-  "pyproject.toml",
-  "hatch.toml"
-]
 
 [envs.test]
-dependencies = ["pytest", "numpy"]
+dependencies = ["pytest"]
 [envs.test.env-vars]
 HATCH_INDEX_REPO = "test"
 HATCH_BUILD_CLEAN = "true"
