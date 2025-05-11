@@ -3,3 +3,4 @@ release.ps1
 /dist
 /.idea
 /tests
+/fdtd_fun/__pycache__
