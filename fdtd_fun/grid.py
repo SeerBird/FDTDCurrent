@@ -14,7 +14,9 @@ from .typing_ import Index
 
 
 class Grid:
-    """DOCS"""
+    """The FDTD grid - the core of this library. The intended use is to create a Grid object,
+     assign GridObject objects to the grid by indexing the Grid object(see __setitem__ below),
+      and then use the run() method below"""
     ds: float
     dt: float
     courant: float
@@ -26,28 +28,41 @@ class Grid:
     E: ndarray  # some sort of field
 
     def __init__(self, shape: tuple[float | int, float | int, float | int], ds: float, courant=None):  # add boundaries
-        """ """
+        """
+
+        :param shape: the dimensions of the grid, a float|int 3-tuple. int values will be used as indexes,
+         and float values will be converted to indexes using the ds value given
+        :param ds: the spacial step of the grid, in meters
+        :param courant: the courant number for the simulation
+        """
         self.ds = ds
         self.t = 0
         self.Nx, self.Ny, self.Nz = self._handle_tuple(shape)
         if self.Nx < 0 or self.Ny < 0 or self.Nz < 0:
             raise ValueError("grid dimensions must be non-negative")
-        D = int(self.Nx > 1) + int(self.Ny > 1) + int(self.Nz > 1)
-        max_courant = const.stability * float(D) ** (-0.5)
+        dim = int(self.Nx > 1) + int(self.Ny > 1) + int(self.Nz > 1)
+        max_courant = const.stability * float(dim) ** (-0.5)
         if courant is None:
             self.courant = max_courant
         elif courant > max_courant:
             raise ValueError(f"courant_number {courant} too high for "
-                             f"a {D}D simulation, have to use {max_courant} or lower")
+                             f"a {dim}D simulation, have to use {max_courant} or lower")
         else:
             self.courant = float(courant)
         self.dt = self.ds * self.courant / const.c
 
+        # TODO: change this when we figure out what fields we even have
         vectorShape = (self.Nx, self.Ny, self.Nz, 3)
         self.E = np.zeros(vectorShape)
 
     def __setitem__(self, key, obj):
-        # the grid supports indexing either by slices or by a 3-tuple of identically shaped ndarrays
+        """
+        Assign a GridObject to a subset of the grid
+        :param key: a tuple of slices, numbers, or ndarrays. All ndarrays must be of the same shape,
+        all int values will be treated as indexes and all float values will be treated as distances and converted to
+        indexes. Indexing with ndarrays is very inefficient and should be avoided.
+        :param obj: a GridObject object
+        """
         if not (isinstance(obj, GridObject)):
             raise TypeError("grid only accepts grid objects")
         if not isinstance(key, tuple):
@@ -97,6 +112,7 @@ class Grid:
         pass
 
     def _add_object(self, obj: GridObject):
+        """Validate and add a GridObject"""
         if isinstance(obj, Boundary):
             dictionary = self.boundaries
         elif isinstance(obj, Detector):
@@ -140,20 +156,9 @@ class Grid:
         )
         return slice(start, stop, step)
 
-    def _handle_tuple(self, shape: tuple[float | int, float | int, float | int]
-                      ) -> tuple[int, int, int]:
-        if len(shape) != 3:
-            raise ValueError(
-                f"invalid grid shape {shape}\n"
-                f"grid shape should be a 3D tuple containing floats or ints"
-            )
-        x, y, z = shape
-        x = self.handle_distance(x)
-        y = self.handle_distance(y)
-        z = self.handle_distance(z)
-        return x, y, z
-
     def handle_distance(self, distance: float | int | ndarray):
+        #TODO: make sure this is convenient for indexing(no holes, no overlaps with the most obvious
+        # approaches etc.)
         if isinstance(distance, int):
             return distance
         elif isinstance(distance, float):
@@ -164,3 +169,15 @@ class Grid:
             elif distance.dtype == int:
                 return distance
         raise TypeError("Distance values should be float, int, or ndarrays of float, int")
+
+    def _handle_tuple(self, shape: tuple[float | int, float | int, float | int]) -> tuple[int, int, int]:
+        if len(shape) != 3:
+            raise ValueError(
+                f"invalid grid shape {shape}\n"
+                f"grid shape should be a 3D tuple containing floats or ints"
+            )
+        x, y, z = shape
+        x = self.handle_distance(x)
+        y = self.handle_distance(y)
+        z = self.handle_distance(z)
+        return x, y, z

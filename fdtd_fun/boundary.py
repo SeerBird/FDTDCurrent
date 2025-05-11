@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from abc import abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -16,7 +18,9 @@ class Boundary(GridObject):
     def _validate_position(self, x: Index, y: Index, z: Index):
         super()._validate_position(x, y, z)
 
-    def read(self):
+    @abstractmethod
+    def update_some_field(self):
+        #TODO: implement PML/Periodic/Reflecting Boundary classes that update the fields we decide we'll have
         pass
 
     def __repr__(self):
