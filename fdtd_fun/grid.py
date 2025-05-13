@@ -97,7 +97,7 @@ class Grid:
         )
         self._add_object(obj)
 
-    def run(self, charge_dist: Callable[[ndarray], ndarray]):
+    def run(self, charge_dist: Callable[[ndarray], ndarray], save = False):
         # equalize - how? antidivergence?
         # region cycle
         # region boundaries
@@ -111,6 +111,11 @@ class Grid:
         # endregion
         pass
 
+    @classmethod
+    def load_from_file(cls, file) -> Grid:
+        pass
+
+    # region helpers
     def _add_object(self, obj: GridObject):
         """Validate and add a GridObject"""
         if isinstance(obj, Boundary):
@@ -157,7 +162,7 @@ class Grid:
         return slice(start, stop, step)
 
     def handle_distance(self, distance: float | int | ndarray):
-        #TODO: make sure this is convenient for indexing(no holes, no overlaps with the most obvious
+        # TODO: make sure this is convenient for indexing(no holes, no overlaps with the most obvious
         # approaches etc.)
         if isinstance(distance, int):
             return distance
@@ -181,3 +186,4 @@ class Grid:
         y = self.handle_distance(y)
         z = self.handle_distance(z)
         return x, y, z
+    # endregion

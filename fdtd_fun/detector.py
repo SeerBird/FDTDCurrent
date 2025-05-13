@@ -15,6 +15,8 @@ class Detector(GridObject):
 
     def __init__(self, name: str,
                  output: Callable[[object], None]):
+        #TODO: add parameters to control which fields this is taking and
+        # add temporal resolution
         super().__init__(name)
         self.output = output
 
@@ -22,7 +24,7 @@ class Detector(GridObject):
         pass
 
     def read(self):
-        pass
+        pass #
 
     def __repr__(self):
         return f"{self.__class__.__name__}(name={repr(self.name)})"

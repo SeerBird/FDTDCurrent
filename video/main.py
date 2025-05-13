@@ -1,7 +1,7 @@
 import numpy as np, fdtd_fun as fdtd
 from numpy import ndarray, dtype, bool
 
-
+# here we're pretending to have an example of how the library will be used
 def my_sphere(r)-> ndarray[tuple[int, ...], dtype[bool]]:
     return r[0]^2+r[1]^2+r[2]^2<3
 def my_plotter(s):
@@ -22,6 +22,8 @@ octant_sphere = sphere(params[0], params[1], 3.0)
 
 
 grid = fdtd.Grid((10.0,20.0,1.0), 0.01)
-grid[0.0:4.0,2.1:16.0,0.3:0.4] = fdtd.Material("bababoi")
-grid[octant_sphere] = fdtd.Detector("bababooie", output)
+# assign boundaries
+grid[0.0:4.0,2.1:16.0,0.3:0.4] = fdtd.Material("bababoi") # slice indexing
+grid[octant_sphere] = fdtd.Detector("bababooie", output) # ndarray indexing
+# sources??
 grid.run(my_starting_rho)
