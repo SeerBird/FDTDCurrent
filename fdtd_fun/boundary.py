@@ -28,3 +28,28 @@ class Boundary(GridObject):
 
     def __str__(self):
         s = "    " + repr(self) + "\n"
+
+class PML(Boundary):
+    def __init__(self, name: str):
+        super().__init__(name)
+
+    def update_some_field(self):
+        # idek how to explain: some kind of absorbing boundary; https://en.wikipedia.org/wiki/Perfectly_matched_layer 
+        pass
+
+class periodic(Boundary):
+    def __init__(self, name: str):
+        super().__init__(name)
+    
+    def update_some_field(self):
+        #distinction between periodic in and periodic out?
+        #Copy state crossing one boundary to opposite boundary
+        pass
+
+class reflecting(Boundary):
+    def __init__(self, name: str):
+        super().__init__(name)
+    
+    def update_some_field(self):
+        #Set everything outside the boundary to 0?
+        pass
