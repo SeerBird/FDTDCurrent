@@ -22,13 +22,24 @@ class Scene:
         # maybe more handling is needed
 
     def add_material(self, mat: Material):
-        pass
+        if self.materials.__contains__(mat.name):
+            raise ValueError("This material is already in this scene")
+        self.materials[mat.name] = mat
+        # maybe more handling is needed
 
     def add_source(self, src: Source):
-        pass
+        if self.sources.__contains__(src.name):
+            raise ValueError("This source is already in this scene")
+        self.sources[src.name] = src
+        # maybe more handling is needed
 
     def frame(self):  # this is most subject to change as idk how manim works
+        #TODO: produce a frame from the current grid state
+        # unless we can't do frames and need to use manim to somehow interpolate idk
         # check the Detector/Material/Source/Grid class code to see what you have access to
         # I suggest you keep working in index units instead of meters because most of the values are already indexes
         # but idk
+        # honestly we just need to talk ab how manim works
+        # if you can make helper methods to get mobjects like a cuboid/mesh/whatever way we cen represent the
+        # materials/sources/detectors that would be good
         pass

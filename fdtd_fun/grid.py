@@ -19,7 +19,7 @@ class Grid:
       and then use the run() method below"""
     ds: float
     dt: float
-    courant: float # c*dt/ds
+    courant: float  # c*dt/ds
     t: int
     boundaries: dict[str, Boundary] = {}
     detectors: dict[str, Detector] = {}
@@ -116,23 +116,46 @@ class Grid:
         # endregion
         trigger()
 
+    def _step(self):
+        for _, src in self.sources.items():
+            src.apply()
+        self._update_E()
+        self._update_H()
+        self._update_J_and_rho()
+        for _, det in self.detectors.items():
+            det.read()
+        for _, src in self.sources.items():
+            src.cancel()
+        pass
+
     def _update_E(self):
         for _, boundary in self.boundaries.items():
             boundary.update_phi_E()  # etc etc
 
         curl = self._curl_H(self.H)
-        self.E += self.courant * (curl - self.J)
+        self.E += self.courant * (curl - self.J) / np.sqrt(const.eps_0 / const.mu_0)
 
         for _, boundary in self.boundaries.items():
-            boundary.update_phi_E()  # etc etc
+            boundary.update_E()  # etc etc
 
-    def _update_B(self):
-        pass
+    def _update_H(self):
+        for _, boundary in self.boundaries.items():
+            boundary.update_phi_H()  # etc etc
+
+        curl = self._curl_E(self.E)
+        self.H += self.courant * -curl * np.sqrt(const.eps_0 / const.mu_0)
+
+        for _, boundary in self.boundaries.items():
+            boundary.update_H()  # etc etc
 
     def _update_J_and_rho(self):
+        for _, material in self.materials.items():
+            material._update_J_and_rho()
+
+    def _div_E(self, field:ndarray)->ndarray:
         pass
 
-    def _curl_D(self, field: ndarray) -> ndarray:
+    def _curl_E(self, field: ndarray) -> ndarray:
         pass
 
     def _curl_H(self, field: ndarray) -> ndarray:

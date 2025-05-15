@@ -15,6 +15,9 @@ class Material(GridObject):
     def _validate_position(self, x: Index, y: Index, z: Index):
         pass
 
+    def _update_J_and_rho(self):
+        pass
+
     def __repr__(self):
         return f"{self.__class__.__name__}(name={repr(self.name)})"
 

@@ -28,11 +28,11 @@ class Boundary(GridObject):
         pass
 
     @abstractmethod
-    def update_phi_B(self):
+    def update_phi_H(self):
         pass
 
     @abstractmethod
-    def update_B(self):
+    def update_H(self):
         pass
 
     def __repr__(self):
