@@ -19,13 +19,16 @@ class Grid:
       and then use the run() method below"""
     ds: float
     dt: float
-    courant: float
+    courant: float # c*dt/ds
     t: int
     boundaries: dict[str, Boundary] = {}
     detectors: dict[str, Detector] = {}
     materials: dict[str, Material] = {}
     sources: dict[str, Source] = {}
-    E: ndarray  # some sort of field
+    E: ndarray  # shape starts with 3, so the first index selects the vector component
+    H: ndarray
+    J: ndarray
+    rho: ndarray  # shape of the grid as this is scalar
 
     def __init__(self, shape: tuple[float | int, float | int, float | int], ds: float, courant=None):  # add boundaries
         """
@@ -97,25 +100,49 @@ class Grid:
         )
         self._add_object(obj)
 
-    def run(self, charge_dist: Callable[[ndarray], ndarray], save = False):
+    def run(self, charge_dist: Callable[[ndarray], ndarray], trigger: Callable, save=False):
         # equalize - how? antidivergence?
         # region cycle
-        # region boundaries
-        # endregion
+
         # region evolution rules
+
         # endregion
         # region sources
         # endregion
         # region detect
+        for _, detector in self.detectors.items():
+            detector.read()
         # endregion
         # endregion
+        trigger()
+
+    def _update_E(self):
+        for _, boundary in self.boundaries.items():
+            boundary.update_phi_E()  # etc etc
+
+        curl = self._curl_H(self.H)
+        self.E += self.courant * (curl - self.J)
+
+        for _, boundary in self.boundaries.items():
+            boundary.update_phi_E()  # etc etc
+
+    def _update_B(self):
+        pass
+
+    def _update_J_and_rho(self):
+        pass
+
+    def _curl_D(self, field: ndarray) -> ndarray:
+        pass
+
+    def _curl_H(self, field: ndarray) -> ndarray:
         pass
 
     @classmethod
     def load_from_file(cls, file) -> Grid:
         pass
 
-    # region helpers
+    # region distance-Index helpers
     def _add_object(self, obj: GridObject):
         """Validate and add a GridObject"""
         if isinstance(obj, Boundary):

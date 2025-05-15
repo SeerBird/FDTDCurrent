@@ -19,8 +19,20 @@ class Boundary(GridObject):
         super()._validate_position(x, y, z)
 
     @abstractmethod
-    def update_some_field(self):
-        #TODO: implement PML/Periodic/Reflecting Boundary classes that update the fields we decide we'll have
+    def update_phi_E(self):
+        # TODO: implement PML/Periodic/Reflecting Boundary classes that update the fields we decide we'll have
+        pass
+
+    @abstractmethod
+    def update_E(self):
+        pass
+
+    @abstractmethod
+    def update_phi_B(self):
+        pass
+
+    @abstractmethod
+    def update_B(self):
         pass
 
     def __repr__(self):
@@ -37,7 +49,7 @@ class PML(Boundary):
         # idek how to explain: some kind of absorbing boundary; https://en.wikipedia.org/wiki/Perfectly_matched_layer 
         pass
 
-class periodic(Boundary):
+class Periodic(Boundary):
     def __init__(self, name: str):
         super().__init__(name)
     
@@ -46,7 +58,7 @@ class periodic(Boundary):
         #Copy state crossing one boundary to opposite boundary
         pass
 
-class reflecting(Boundary):
+class Reflecting(Boundary):
     def __init__(self, name: str):
         super().__init__(name)
     

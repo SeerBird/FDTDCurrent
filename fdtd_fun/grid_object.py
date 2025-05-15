@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 
 class GridObject:
     name:str
-    grid:Grid
+    _grid:Grid
     x:Index
     y:Index
     z:Index
@@ -16,7 +16,7 @@ class GridObject:
         self.name = name
 
     def _register_grid(self, grid: Grid, x: Index, y: Index, z: Index):
-        self.grid = grid
+        self._grid = grid
         self._validate_position(x,y,z)
         self.x = x
         self.y = y
