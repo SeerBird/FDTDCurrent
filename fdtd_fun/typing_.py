@@ -3,9 +3,8 @@ Vector3 = tuple[int, int, int] | tuple[float, float, float]
 Index = slice | ndarray[tuple[int, ...], int]|int
 
 class SliceAddInt: # just in case
-    adding:int
     def __init__(self, adding:int):
-        self.adding = adding
+        self.adding:int = adding
     def __add__(self, other):
         if not isinstance(other, slice):
             return self.adding + other

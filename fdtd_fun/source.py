@@ -11,7 +11,6 @@ from .grid_object import GridObject
 
 ## Object
 class Source(GridObject):
-    function: Callable[[np.ndarray, float], np.ndarray[tuple[int, ...], np.dtype[float]]]
 
     def __init__(self, name: str,
                  function: Callable[[np.ndarray, float], np.ndarray[tuple[int, ...], np.dtype[float]]]):
@@ -30,10 +29,3 @@ class Source(GridObject):
 
     def _validate_position(self, x: Index, y: Index, z: Index):
         pass
-
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}(name={repr(self.name)})"
-
-    def __str__(self):
-        s = "    " + repr(self) + "\n"

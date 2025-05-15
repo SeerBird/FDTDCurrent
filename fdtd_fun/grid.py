@@ -8,7 +8,7 @@ from . import constants as const
 from .grid_object import GridObject
 from .boundary import Boundary
 from .detector import Detector
-from .material import Material
+from .conductor import Conductor
 from .source import Source
 from .typing_ import Index
 
@@ -17,18 +17,6 @@ class Grid:
     """The FDTD grid - the core of this library. The intended use is to create a Grid object,
      assign GridObject objects to the grid by indexing the Grid object(see __setitem__ below),
       and then use the run() method below"""
-    ds: float
-    dt: float
-    courant: float  # c*dt/ds
-    t: int
-    boundaries: dict[str, Boundary] = {}
-    detectors: dict[str, Detector] = {}
-    materials: dict[str, Material] = {}
-    sources: dict[str, Source] = {}
-    E: ndarray  # shape starts with 3, so the first index selects the vector component
-    H: ndarray
-    J: ndarray
-    rho: ndarray  # shape of the grid as this is scalar
 
     def __init__(self, shape: tuple[float | int, float | int, float | int], ds: float, courant=None):  # add boundaries
         """
@@ -38,11 +26,21 @@ class Grid:
         :param ds: the spacial step of the grid, in meters
         :param courant: the courant number for the simulation
         """
-        self.ds = ds
-        self.t = 0
-        self.Nx, self.Ny, self.Nz = self._handle_tuple(shape)
+        self.boundaries: dict[str, Boundary] = {}
+        self.detectors: dict[str, Detector] = {}
+        self.materials: dict[str, Conductor] = {}
+        self.sources: dict[str, Source] = {}
+        self.ds: float = ds  # space step
+        self.dt: float  # time step
+        self.courant: float  # the courant number, c*dt/ds
+        self.t: int = 0  # current time index
+        self.Nx, self.Ny, self.Nz = self._handle_tuple(shape)  # index dimensions of the grid
         if self.Nx < 0 or self.Ny < 0 or self.Nz < 0:
             raise ValueError("grid dimensions must be non-negative")
+        self.E = np.zeros((3, self.Nx, self.Ny, self.Nz))
+        self.H = np.zeros((3, self.Nx, self.Ny, self.Nz))
+        self.J = np.zeros((3, self.Nx, self.Ny, self.Nz))
+        self.rho = np.zeros((self.Nx, self.Ny, self.Nz))
         dim = int(self.Nx > 1) + int(self.Ny > 1) + int(self.Nz > 1)
         max_courant = const.stability * float(dim) ** (-0.5)
         if courant is None:
@@ -53,10 +51,6 @@ class Grid:
         else:
             self.courant = float(courant)
         self.dt = self.ds * self.courant / const.c
-
-        # TODO: change this when we figure out what fields we even have
-        vectorShape = (self.Nx, self.Ny, self.Nz, 3)
-        self.E = np.zeros(vectorShape)
 
     def __setitem__(self, key, obj):
         """
@@ -121,7 +115,8 @@ class Grid:
             src.apply()
         self._update_E()
         self._update_H()
-        self._update_J_and_rho()
+        for _, material in self.materials.items():
+            material._update_J_and_rho()
         for _, det in self.detectors.items():
             det.read()
         for _, src in self.sources.items():
@@ -148,11 +143,7 @@ class Grid:
         for _, boundary in self.boundaries.items():
             boundary.update_H()  # etc etc
 
-    def _update_J_and_rho(self):
-        for _, material in self.materials.items():
-            material._update_J_and_rho()
-
-    def _div_E(self, field:ndarray)->ndarray:
+    def _div_E(self, field: ndarray) -> ndarray:
         pass
 
     def _curl_E(self, field: ndarray) -> ndarray:
@@ -172,7 +163,7 @@ class Grid:
             dictionary = self.boundaries
         elif isinstance(obj, Detector):
             dictionary = self.detectors
-        elif isinstance(obj, Material):
+        elif isinstance(obj, Conductor):
             dictionary = self.materials
         elif isinstance(obj, Source):
             dictionary = self.sources

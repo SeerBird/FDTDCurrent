@@ -35,12 +35,6 @@ class Boundary(GridObject):
     def update_H(self):
         pass
 
-    def __repr__(self):
-        return f"{self.__class__.__name__}(name={repr(self.name)})"
-
-    def __str__(self):
-        s = "    " + repr(self) + "\n"
-
 class PML(Boundary):
     def __init__(self, name: str):
         super().__init__(name)

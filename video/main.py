@@ -29,7 +29,7 @@ octant_sphere = sphere(params[0], params[1], 3.0)
 
 grid = fdtd.Grid((10.0, 20.0, 1.0), 0.01)
 # assign boundaries
-grid[0.0:4.0, 2.1:16.0, 0.3:0.4] = fdtd.Material("bababoi")  # slice indexing
+grid[0.0:4.0, 2.1:16.0, 0.3:0.4] = fdtd.Conductor("bababoi",0)  # slice indexing
 det1 = fdtd.Detector("bababooie")
 grid[octant_sphere] = det1  # ndarray indexing
 # sources??

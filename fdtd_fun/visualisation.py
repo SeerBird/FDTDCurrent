@@ -3,13 +3,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fdtd_fun import Grid, Detector, Material, Source
+    from fdtd_fun import Grid, Detector, Conductor, Source
 
 
 
 class Scene:
     detectors: dict[str, Detector]
-    materials: dict[str, Material]
+    materials: dict[str, Conductor]
     sources: dict[str, Source]
 
     def __init__(self, grid: Grid, camera_pos, camera_dir):
@@ -21,7 +21,7 @@ class Scene:
         self.detectors[det.name] = det
         # maybe more handling is needed
 
-    def add_material(self, mat: Material):
+    def add_material(self, mat: Conductor):
         if self.materials.__contains__(mat.name):
             raise ValueError("This material is already in this scene")
         self.materials[mat.name] = mat

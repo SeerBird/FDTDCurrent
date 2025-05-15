@@ -12,14 +12,14 @@ from fdtd_fun.grid_object import GridObject
 
 ## Object
 class Detector(GridObject):
-    E: ndarray  # shape starts with 3, so the first index selects the vector component
-    B: ndarray
-    J: ndarray
-    rho: ndarray  # shape of the position array provided in _register_grid()
-
     def __init__(self, name: str):
         # TODO: add parameters to control which fields this is taking and
-        # add temporal resolution
+        #  add temporal resolution
+        # the fields measured by the conductor the last time the read() method was called
+        self.E: ndarray  # shape starts with 3, so the first index selects the vector component
+        self.B: ndarray
+        self.J: ndarray
+        self.rho: ndarray  # shape of the position array provided in _register_grid()
         super().__init__(name)
 
     def _validate_position(self, x: Index, y: Index, z: Index):
@@ -37,9 +37,3 @@ class Detector(GridObject):
             self.E = self.E.copy()
         #etc..
         '''
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}(name={repr(self.name)})"
-
-    def __str__(self):
-        s = "    " + repr(self) + "\n"
