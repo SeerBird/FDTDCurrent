@@ -8,12 +8,10 @@ if TYPE_CHECKING:
 
 
 class Scene:
-    detectors: dict[str, Detector]
-    materials: dict[str, Conductor]
-    sources: dict[str, Source]
-
     def __init__(self, grid: Grid, camera_pos, camera_dir):
-        pass
+        self.detectors: dict[str, Detector] = {}
+        self.materials: dict[str, Conductor] = {}
+        self.sources: dict[str, Source] = {}
 
     def add_detector(self, det: Detector):
         if self.detectors.__contains__(det.name):
@@ -31,7 +29,7 @@ class Scene:
         if self.sources.__contains__(src.name):
             raise ValueError("This source is already in this scene")
         self.sources[src.name] = src
-        # maybe more handling is needed
+        # maybe more handling is neededw
 
     def frame(self):  # this is most subject to change as idk how manim works
         #TODO: produce a frame from the current grid state
