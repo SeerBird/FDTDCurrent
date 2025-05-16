@@ -4,3 +4,4 @@ release.ps1
 /.idea
 /tests
 /fdtd_fun/__pycache__
+testGrid.dat

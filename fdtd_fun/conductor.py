@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-import constants as const
+from . import constants as const
 
 if TYPE_CHECKING:
     from fdtd_fun import Grid

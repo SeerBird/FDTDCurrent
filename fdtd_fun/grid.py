@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Callable
 
 import numpy as np
+import pickle
 from numpy import ndarray
 
 from . import constants as const
@@ -13,12 +14,21 @@ from .source import Source
 from .typing_ import Index
 
 
+class State:
+    def __init__(self, E: ndarray, H: ndarray, J: ndarray, rho: ndarray):
+        self.E: ndarray = E
+        self.H: ndarray = H
+        self.J: ndarray = J
+        self.rho: ndarray = rho
+
+
 class Grid:
     """The FDTD grid - the core of this library. The intended use is to create a Grid object,
      assign GridObject objects to the grid by indexing the Grid object(see __setitem__ below),
       and then use the run() method below"""
 
-    def __init__(self, shape: tuple[float | int, float | int, float | int], ds: float, courant=None):  # add boundaries
+    def __init__(self, name: str, shape: tuple[float | int, float | int, float | int], ds: float,
+                 courant: float = None, save_path: str = None):  # add boundaries
         """
 
         :param shape: the dimensions of the grid, a float|int 3-tuple. int values will be used as indexes,
@@ -26,6 +36,8 @@ class Grid:
         :param ds: the spacial step of the grid, in meters
         :param courant: the courant number for the simulation
         """
+        self.file = None  # TODO: annotate this thing? what's its type?
+        self.name: str = name
         self.boundaries: dict[str, Boundary] = {}
         self.detectors: dict[str, Detector] = {}
         self.materials: dict[str, Conductor] = {}
@@ -37,10 +49,6 @@ class Grid:
         self.Nx, self.Ny, self.Nz = self._handle_tuple(shape)  # index dimensions of the grid
         if self.Nx < 0 or self.Ny < 0 or self.Nz < 0:
             raise ValueError("grid dimensions must be non-negative")
-        self.E = np.zeros((3, self.Nx, self.Ny, self.Nz))
-        self.H = np.zeros((3, self.Nx, self.Ny, self.Nz))
-        self.J = np.zeros((3, self.Nx, self.Ny, self.Nz))
-        self.rho = np.zeros((self.Nx, self.Ny, self.Nz))
         dim = int(self.Nx > 1) + int(self.Ny > 1) + int(self.Nz > 1)
         max_courant = const.stability * float(dim) ** (-0.5)
         if courant is None:
@@ -51,6 +59,15 @@ class Grid:
         else:
             self.courant = float(courant)
         self.dt = self.ds * self.courant / const.c
+        if save_path is not None:
+            file = open(save_path + f"{self.name}.dat", "ab")
+            # TODO: obviously add error handling
+            pickle.dump(self, file)
+            self.file = file
+        self.E: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
+        self.H = np.zeros((3, self.Nx, self.Ny, self.Nz))
+        self.J = np.zeros((3, self.Nx, self.Ny, self.Nz))
+        self.rho = np.zeros((self.Nx, self.Ny, self.Nz))
 
     def __setitem__(self, key, obj):
         """
@@ -92,23 +109,70 @@ class Grid:
             y=self._handle_single_key(y),
             z=self._handle_single_key(z),
         )
+        if self.file is not None and self.file.mode == "ab":
+            pickle.dump(obj, self.file)
         self._add_object(obj)
 
-    def run(self, charge_dist: Callable[[ndarray], ndarray], trigger: Callable, save=False):
+    def run(self, charge_dist: Callable[[ndarray], ndarray], time:float|int, trigger: Callable = None):
         # equalize - how? antidivergence?
-        # region cycle
+        if isinstance(time,float):
+            time = int(time/self.dt)
+        while self.t<time:
+            self.t+=1
+            self._step()
+            if trigger is not None:
+                trigger()
+        if self.file is not None:
+            self.file.close()
 
-        # region evolution rules
+    @classmethod
+    def load_from_file(cls, save_path: str) -> Grid:
+        """
+        Loads a Grid object from a file, restores all GridObjects, and sets the state to the first recorded state
+        :param save_path: specify format here
+        :return: new Grid object loaded from the file
+        """
+        with open(save_path, "rb") as file:
+            # TODO: more error handling please
+            #  also this is some weeeeird logic around the saving/loading...
+            grid = pickle.load(file)
+            if isinstance(grid, Grid):
+                grid.file = file
+                obj = pickle.load(file)
+                # TODO persistent ID pickle stuff
+                while isinstance(obj, GridObject):
+                    grid._add_object(obj)
+                    obj = pickle.load(file)
+                if isinstance(obj, State):
+                    grid.E = obj.E
+                    grid.H = obj.H
+                    grid.J = obj.J
+                    grid.rho = obj.rho
+                    return grid
+        raise Exception("haha")
 
-        # endregion
-        # region sources
-        # endregion
-        # region detect
-        for _, detector in self.detectors.items():
-            detector.read()
-        # endregion
-        # endregion
-        trigger()
+    def load_next_frame(self) -> bool:
+        if self.file is None or not self.file.mode == "rb":
+            raise NotImplementedError(
+                "This method is only callable on a Grid object that has been loaded from a file - "
+                "please use Grid.load_from_file()")
+        try:
+            state = pickle.load(self.file)
+            if not isinstance(state, State):
+                raise ValueError("The value read from the file was not a State object")
+            self.E = state.E
+            self.H = state.H
+            self.J = state.J
+            self.rho = state.rho
+            return False
+        except EOFError:
+            self.file.close()
+            return True
+
+    def __getstate__(self):
+        _dict = self.__dict__.copy()
+        _dict.pop("file")
+        return _dict
 
     def _step(self):
         for _, src in self.sources.items():
@@ -119,9 +183,10 @@ class Grid:
             material._update_J_and_rho()
         for _, det in self.detectors.items():
             det.read()
+        if self.file is not None:
+            pickle.dump(State(self.E, self.H, self.J, self.rho), self.file)
         for _, src in self.sources.items():
             src.cancel()
-        pass
 
     def _update_E(self):
         for _, boundary in self.boundaries.items():
@@ -150,10 +215,6 @@ class Grid:
         pass
 
     def _curl_H(self, field: ndarray) -> ndarray:
-        pass
-
-    @classmethod
-    def load_from_file(cls, file) -> Grid:
         pass
 
     # region distance-Index helpers

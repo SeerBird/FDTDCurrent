@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 [project]
 name = "fdtd_fun" # obv change the name here but remember to change the package name in the file tree accordingly
 version = "0.0.5"
-dependencies = ["numpy"]
+dependencies = ["numpy","manim"]
 authors = [
   { name="SeerBird", email="ilya.govorunov@gmail.com" }, # everyone get your details on here at some point if you want
 ]

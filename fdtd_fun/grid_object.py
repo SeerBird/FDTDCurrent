@@ -23,6 +23,11 @@ class GridObject:
         self.y = y
         self.z = z
 
+    def __getstate__(self):
+        _dict = self.__dict__.copy()
+        _dict.pop("_grid")
+        return _dict
+
     @abstractmethod
     def _validate_position(self, x: Index, y: Index, z: Index):
         pass

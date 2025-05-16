@@ -26,13 +26,23 @@ u = np.linspace(0, np.pi / 2, 200)
 v = np.linspace(0, np.pi / 2, 200)
 params = np.meshgrid(u, v)
 octant_sphere = sphere(params[0], params[1], 3.0)
-
-grid = fdtd.Grid((10.0, 20.0, 1.0), 0.01)
+save_path = "video/" # gotta correct the pathing at some point cuz this is ugly
+grid = fdtd.Grid("testGrid", (10.0, 20.0, 1.0), 0.01,save_path=save_path)
 # assign boundaries
-grid[0.0:4.0, 2.1:16.0, 0.3:0.4] = fdtd.Conductor("bababoi",0)  # slice indexing
-det1 = fdtd.Detector("bababooie")
-grid[octant_sphere] = det1  # ndarray indexing
-# sources??
-scene = fdtd.Scene(grid, None, None)
-scene.add_detector(det1)
-grid.run(my_starting_rho, scene.frame)
+grid[0.0:4.0, 2.1:16.0, 0.3:0.4] = fdtd.Conductor("bababoi", 0, 0, 0)
+# add sources
+def trigger():
+    pass # do smth before every tick
+grid.run(my_starting_rho,10, trigger) # grid runs, the only interaction with any outside code is through the
+# trigger() function.
+
+
+newGrid = fdtd.Grid.load_from_file(save_path) # we can load the grid from a file. this restores (or should restore)
+# all the GridObjects on the grid and sets the state to the initial state
+# after this, calling newGrid.load_next_frame() sets the grid to the next state
+det1 = fdtd.Detector("bababooie") # new detectors can be added that weren't needed when the sim was running but will
+# be needed for the visualisation
+newGrid[:,:,:] = det1
+scene = fdtd.GridScene(grid, None, None)
+scene.render() # scene.render(), among other things, calls scene.construct(), which is the method in which we need
+# to repeatedly use the grid state and call grid.load_next_frame()
