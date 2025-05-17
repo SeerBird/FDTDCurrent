@@ -33,6 +33,10 @@ class Conductor(GridObject):
         :param sigma: the conductivity of the conductor
         """
         super().__init__(name)
+        if sigma<=0:
+            raise ValueError(f"Conductivity must be positive, {sigma} provided")
+        if s==0:
+            raise ValueError(f"Specific charge must be non-zero")
         self.sigma = sigma
         self.rho_f = rho_f
         self.s = s

@@ -28,7 +28,7 @@ class Grid:
       and then use the run() method below"""
 
     def __init__(self, name: str, shape: tuple[float | int, float | int, float | int], ds: float,
-                 courant: float = None, save_path: str = None):  # add boundaries
+                 courant: float = None):  # add boundaries
         """
 
         :param shape: the dimensions of the grid, a float|int 3-tuple. int values will be used as indexes,
@@ -59,11 +59,6 @@ class Grid:
         else:
             self.courant = float(courant)
         self.dt = self.ds * self.courant / const.c
-        if save_path is not None:
-            file = open(save_path + f"{self.name}.dat", "ab")
-            # TODO: obviously add error handling
-            pickle.dump(self, file)
-            self.file = file
         self.E: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.H = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.J = np.zeros((3, self.Nx, self.Ny, self.Nz))
@@ -109,19 +104,21 @@ class Grid:
             y=self._handle_single_key(y),
             z=self._handle_single_key(z),
         )
-        if self.file is not None and self.file.mode == "ab":
-            pickle.dump(obj, self.file)
         self._add_object(obj)
 
-    def run(self, charge_dist: Callable[[ndarray], ndarray], time:float|int, trigger: Callable = None):
+    def run(self, charge_dist: Callable[[ndarray], ndarray], time:float|int, save_path: str = None, trigger: Callable = None):
         # equalize - how? antidivergence?
+        if save_path is not None:
+            self.file = open(save_path + f"{self.name}.dat", "wb")
+            # TODO: obviously add error handling
+            pickle.dump(self, self.file)
         if isinstance(time,float):
             time = int(time/self.dt)
         while self.t<time:
-            self.t+=1
             self._step()
             if trigger is not None:
                 trigger()
+            self.t+=1
         if self.file is not None:
             self.file.close()
 
@@ -132,23 +129,14 @@ class Grid:
         :param save_path: specify format here
         :return: new Grid object loaded from the file
         """
-        with open(save_path, "rb") as file:
-            # TODO: more error handling please
-            #  also this is some weeeeird logic around the saving/loading...
-            grid = pickle.load(file)
-            if isinstance(grid, Grid):
-                grid.file = file
-                obj = pickle.load(file)
-                # TODO persistent ID pickle stuff
-                while isinstance(obj, GridObject):
-                    grid._add_object(obj)
-                    obj = pickle.load(file)
-                if isinstance(obj, State):
-                    grid.E = obj.E
-                    grid.H = obj.H
-                    grid.J = obj.J
-                    grid.rho = obj.rho
-                    return grid
+        file = open(save_path, "rb")
+        # TODO: more error handling please
+        #  also this is some weeeeird logic around the saving/loading...
+        grid = pickle.load(file)
+        if isinstance(grid, Grid):
+            grid.file = file
+            # TODO persistent ID pickle stuff
+            return grid
         raise Exception("haha")
 
     def load_next_frame(self) -> bool:
@@ -172,19 +160,23 @@ class Grid:
     def __getstate__(self):
         _dict = self.__dict__.copy()
         _dict.pop("file")
+        _dict.pop("E")
+        _dict.pop("H")
+        _dict.pop("J")
+        _dict.pop("rho")
         return _dict
 
     def _step(self):
         for _, src in self.sources.items():
             src.apply()
+        if self.file is not None:
+            pickle.dump(State(self.E, self.H, self.J, self.rho), self.file)
         self._update_E()
         self._update_H()
         for _, material in self.materials.items():
             material._update_J_and_rho()
         for _, det in self.detectors.items():
             det.read()
-        if self.file is not None:
-            pickle.dump(State(self.E, self.H, self.J, self.rho), self.file)
         for _, src in self.sources.items():
             src.cancel()
 
@@ -208,14 +200,34 @@ class Grid:
         for _, boundary in self.boundaries.items():
             boundary.update_H()  # etc etc
 
-    def _div_E(self, field: ndarray) -> ndarray:
+    def _div_E(self, E: ndarray) -> ndarray:
         pass
 
-    def _curl_E(self, field: ndarray) -> ndarray:
-        pass
+    def _curl_E(self, E: ndarray) -> ndarray:
+        curl = np.zeros_like(E)
+        #dz/dy - dy/dz
+        curl[:, :-1, :, 0] += E[:, 1:, :, 2] - E[:, :-1, :, 2]
+        curl[:, :, :-1, 0] -= E[:, :, 1:, 1] - E[:, :, :-1, 1]
+        #dx/dz-dz/dx
+        curl[:, :, :-1, 1] += E[:, :, 1:, 0] - E[:, :, :-1, 0]
+        curl[:-1, :, :, 1] -= E[1:, :, :, 2] - E[:-1, :, :, 2]
+        #dy/dx-dx/dy
+        curl[:-1, :, :, 2] += E[1:, :, :, 1] - E[:-1, :, :, 1]
+        curl[:, :-1, :, 2] -= E[:, 1:, :, 0] - E[:, :-1, :, 0]
+        return curl # zero on the high edges of the region
 
-    def _curl_H(self, field: ndarray) -> ndarray:
-        pass
+    def _curl_H(self, H: ndarray) -> ndarray:
+        curl = np.zeros_like(H)
+        # dz/dy - dy/dz
+        curl[:, 1:, :, 0] += H[:, 1:, :, 2] - H[:, :-1, :, 2]
+        curl[:, :, 1:, 0] -= H[:, :, 1:, 1] - H[:, :, :-1, 1]
+        # dx/dz-dz/dx
+        curl[:, :, 1:, 1] += H[:, :, 1:, 0] - H[:, :, :-1, 0]
+        curl[1:, :, :, 1] -= H[1:, :, :, 2] - H[:-1, :, :, 2]
+        # dy/dx-dx/dy
+        curl[1:, :, :, 2] += H[1:, :, :, 1] - H[:-1, :, :, 1]
+        curl[:, 1:, :, 2] -= H[:, 1:, :, 0] - H[:, :-1, :, 0]
+        return curl # zero on the low edges of the region
 
     # region distance-Index helpers
     def _add_object(self, obj: GridObject):
