@@ -31,13 +31,13 @@ class GridScene(ThreeDScene):
         detectors = {}
         for name, det in grid.detectors.items():
             pos = grid.positions(det.x, det.y, det.z)
-            pos = np.moveaxis(pos,0,-1)
+            pos = np.moveaxis(pos, 0, -1)
             itershape = pos.shape[:-1]
             fields = {}
             detectors[name] = (itershape, pos, fields)
             if det.E is not None:
                 field = AnyVectorField()
-                  # TODO: OH MY GOD THIS IS SO HORRIBLE DO SOMETHINGGGG. the indexinggg.. moveaxis...
+                # TODO: OH MY GOD THIS IS SO HORRIBLE DO SOMETHINGGGG. the indexinggg.. moveaxis...
                 for index in np.ndindex(itershape):
                     field.add(field.get_vector(pos[index], np.moveaxis(det.E, 0, -1)[index]))
                 fields[E] = field
@@ -58,7 +58,8 @@ class GridScene(ThreeDScene):
                     index: tuple
                     for index in np.ndindex(itershape):
                         nextField.add(nextField.get_vector(pos[index], np.moveaxis(det.E, 0, -1)[index]))
-                    self.play(Transform(fields[E], nextField))
+                    self.play(Transform(fields[E], nextField, rate_func=lambda x: x))
+                    self.remove(fields[E])
                     fields[E] = nextField
 
 

@@ -1,6 +1,8 @@
 import numpy as np, fdtd_fun as fdtd
 from numpy import ndarray, dtype, bool
 
+from fdtd_fun.grid import State
+
 
 # here we're pretending to have an example of how the library will be used
 def my_sphere(r) -> ndarray[tuple[int, ...], dtype[bool]]:
@@ -21,6 +23,10 @@ def sphere(theta, phi, r):
     z = r * np.cos(theta)
     return x, y, z
 
+def boogy_woogy(r:np.ndarray,t:float)->State:
+    phase = r[0]**2+r[1]**2+r[2]**2
+    return State(np.asarray((np.cos(phase+t),np.sin(phase+t),np.cos(phase+t)+np.sin(phase+t))),None,None,None)
+
 
 u = np.linspace(0, np.pi / 2, 10)
 v = np.linspace(0, np.pi / 2, 10)
@@ -30,7 +36,7 @@ save_path = "video/"  # gotta correct the pathing at some point cuz this is ugly
 grid = fdtd.Grid("testGrid", (5.0, 4.0, 4.0), 0.1)
 # assign boundaries
 grid[0.0:4.0, 2.1:3.0, 0.3:0.4] = fdtd.Conductor("bababoi", 1, 1, 1)
-
+grid[:,:,:] = fdtd.Source("boogy", boogy_woogy)
 
 # add sources
 def trigger():

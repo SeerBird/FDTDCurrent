@@ -15,11 +15,11 @@ from .typing_ import Index
 
 
 class State:
-    def __init__(self, E: ndarray, H: ndarray, J: ndarray, rho: ndarray):
-        self.E: ndarray = E
-        self.H: ndarray = H
-        self.J: ndarray = J
-        self.rho: ndarray = rho
+    def __init__(self, E: ndarray | None, H: ndarray | None, J: ndarray | None, rho: ndarray | None):
+        self.E: ndarray | None = E
+        self.H: ndarray | None = H
+        self.J: ndarray | None = J
+        self.rho: ndarray | None = rho
 
 
 def _curl_E(E: ndarray) -> ndarray:
@@ -99,7 +99,7 @@ class Grid:
         else:
             self.courant = float(courant)
         self.dt = self.ds * self.courant / const.c
-        self.E: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))+1*10**16
+        self.E: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.H: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.J: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.rho: ndarray = np.zeros((self.Nx, self.Ny, self.Nz))
@@ -326,4 +326,7 @@ class Grid:
 
     def positions(self, x: Index, y: Index, z: Index):
         return self._positions[:, x, y, z]
+
+    def time(self):
+        return self.t * self.dt
     # endregion
