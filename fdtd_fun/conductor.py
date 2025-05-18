@@ -44,7 +44,7 @@ class Conductor(GridObject):
     def _validate_position(self, x: Index, y: Index, z: Index):
         pass
 
-    def _update_J_and_rho(self) -> None:
+    def _update_J(self) -> None:
         # TODO: consider moving everything to do with J and rho into the conductor code and
         #  splitting the field arrays into per-conductor arrays
         E = self._grid.E[:, self.x, self.y, self.z]

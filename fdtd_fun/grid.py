@@ -22,6 +22,43 @@ class State:
         self.rho: ndarray = rho
 
 
+def _curl_E(E: ndarray) -> ndarray:
+    # TODO: figure out what the grids actually look like and formalize all the differential ops
+    curl = np.zeros_like(E)
+    # dz/dy - dy/dz
+    curl[0, :, :-1, :] += E[2, :, 1:, :] - E[2, :, :-1, :]
+    curl[0, :, :, :-1] -= E[1, :, :, 1:] - E[1, :, :, :-1]
+    # dx/dz-dz/dx
+    curl[1, :, :, :-1] += E[0, :, :, 1:] - E[0, :, :, :-1]
+    curl[1, :-1, :, :] -= E[2, 1:, :, :] - E[2, :-1, :, :]
+    # dy/dx-dx/dy
+    curl[2, :-1, :, :] += E[1, 1:, :, :] - E[1, :-1, :, :]
+    curl[2, :, :-1, :] -= E[0, :, 1:, :] - E[0, :, :-1, :]
+    return curl  # zero on the high edges of the region
+
+
+def _curl_H(H: ndarray) -> ndarray:
+    curl = np.zeros_like(H)
+    # dz/dy - dy/dz
+    curl[0, :, 1:, :] += H[2, :, 1:, :] - H[2, :, :-1, :]
+    curl[0, :, :, 1:] -= H[1, :, :, 1:] - H[1, :, :, :-1]
+    # dx/dz-dz/dx
+    curl[1, :, :, 1:] += H[0, :, :, 1:] - H[0, :, :, :-1]
+    curl[1, 1:, :, :] -= H[2, 1:, :, :] - H[2, :-1, :, :]
+    # dy/dx-dx/dy
+    curl[2, 1:, :, :] += H[1, 1:, :, :] - H[1, :-1, :, :]
+    curl[2, :, 1:, :] -= H[0, :, 1:, :] - H[0, :, :-1, :]
+    return curl  # zero on the low edges of the region
+
+
+def _div_E(E: ndarray) -> ndarray:
+    div = np.zeros((E.shape[1], E.shape[2], E.shape[3]))
+    div[1:, :, :] += E[0, 1:, :, :] - E[0, :-1, :, :]
+    div[:, 1:, :] += E[1, :, 1:, :] - E[1, :, :-1, :]
+    div[:, :, 1:] += E[2, :, :, 1:] - E[2, :, :, :-1]
+    return div
+
+
 class Grid:
     """The FDTD grid - the core of this library. The intended use is to create a Grid object,
      assign GridObject objects to the grid by indexing the Grid object(see __setitem__ below),
@@ -40,13 +77,16 @@ class Grid:
         self.name: str = name
         self.boundaries: dict[str, Boundary] = {}
         self.detectors: dict[str, Detector] = {}
-        self.materials: dict[str, Conductor] = {}
+        self.conductors: dict[str, Conductor] = {}
         self.sources: dict[str, Source] = {}
         self.ds: float = ds  # space step
         self.dt: float  # time step
         self.courant: float  # the courant number, c*dt/ds
         self.t: int = 0  # current time index
         self.Nx, self.Ny, self.Nz = self._handle_tuple(shape)  # index dimensions of the grid
+        self._positions: ndarray = self.ds * np.asarray(np.meshgrid(np.arange(self.Nx),
+                                                                    np.arange(self.Ny),
+                                                                    np.arange(self.Nz), indexing="ij"))
         if self.Nx < 0 or self.Ny < 0 or self.Nz < 0:
             raise ValueError("grid dimensions must be non-negative")
         dim = int(self.Nx > 1) + int(self.Ny > 1) + int(self.Nz > 1)
@@ -60,9 +100,10 @@ class Grid:
             self.courant = float(courant)
         self.dt = self.ds * self.courant / const.c
         self.E: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
-        self.H = np.zeros((3, self.Nx, self.Ny, self.Nz))
-        self.J = np.zeros((3, self.Nx, self.Ny, self.Nz))
-        self.rho = np.zeros((self.Nx, self.Ny, self.Nz))
+        self.H: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
+        self.J: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
+        self.rho: ndarray = np.zeros((self.Nx, self.Ny, self.Nz))
+        self.materialMask = np.zeros((self.Nx, self.Ny, self.Nz), int)
 
     def __setitem__(self, key, obj):
         """
@@ -106,19 +147,25 @@ class Grid:
         )
         self._add_object(obj)
 
-    def run(self, charge_dist: Callable[[ndarray], ndarray], time:float|int, save_path: str = None, trigger: Callable = None):
+    def run(self, charge_dist: Callable[[ndarray], ndarray],
+            time: float | int, save_path: str = None,
+            trigger: Callable = None):
+        starting_rho = charge_dist(self._positions)
+        if starting_rho.shape != self.rho.shape:
+            raise ValueError("charge_dist function must return blah blah blah")
+        self.rho = starting_rho
         # equalize - how? antidivergence?
         if save_path is not None:
             self.file = open(save_path + f"{self.name}.dat", "wb")
             # TODO: obviously add error handling
             pickle.dump(self, self.file)
-        if isinstance(time,float):
-            time = int(time/self.dt)
-        while self.t<time:
+        if isinstance(time, float):
+            time = int(time / self.dt)
+        while self.t < time:
             self._step()
             if trigger is not None:
                 trigger()
-            self.t+=1
+            self.t += 1
         if self.file is not None:
             self.file.close()
 
@@ -135,7 +182,7 @@ class Grid:
         grid = pickle.load(file)
         if isinstance(grid, Grid):
             grid.file = file
-            # TODO persistent ID pickle stuff
+            # maybe check out persistent ID pickle stuff
             return grid
         raise Exception("haha")
 
@@ -152,6 +199,8 @@ class Grid:
             self.H = state.H
             self.J = state.J
             self.rho = state.rho
+            for _, detector in self.detectors.items():
+                detector.read()
             return False
         except EOFError:
             self.file.close()
@@ -173,8 +222,9 @@ class Grid:
             pickle.dump(State(self.E, self.H, self.J, self.rho), self.file)
         self._update_E()
         self._update_H()
-        for _, material in self.materials.items():
-            material._update_J_and_rho()
+        for _, material in self.conductors.items():
+            material._update_J()
+            self.rho -= _div_E(self.J) * self.materialMask
         for _, det in self.detectors.items():
             det.read()
         for _, src in self.sources.items():
@@ -184,7 +234,7 @@ class Grid:
         for _, boundary in self.boundaries.items():
             boundary.update_phi_E()  # etc etc
 
-        curl = self._curl_H(self.H)
+        curl = _curl_H(self.H)
         self.E += self.courant * (curl - self.J) / np.sqrt(const.eps_0 / const.mu_0)
 
         for _, boundary in self.boundaries.items():
@@ -194,40 +244,11 @@ class Grid:
         for _, boundary in self.boundaries.items():
             boundary.update_phi_H()  # etc etc
 
-        curl = self._curl_E(self.E)
+        curl = _curl_E(self.E)
         self.H += self.courant * -curl * np.sqrt(const.eps_0 / const.mu_0)
 
         for _, boundary in self.boundaries.items():
             boundary.update_H()  # etc etc
-
-    def _div_E(self, E: ndarray) -> ndarray:
-        pass
-
-    def _curl_E(self, E: ndarray) -> ndarray:
-        curl = np.zeros_like(E)
-        #dz/dy - dy/dz
-        curl[:, :-1, :, 0] += E[:, 1:, :, 2] - E[:, :-1, :, 2]
-        curl[:, :, :-1, 0] -= E[:, :, 1:, 1] - E[:, :, :-1, 1]
-        #dx/dz-dz/dx
-        curl[:, :, :-1, 1] += E[:, :, 1:, 0] - E[:, :, :-1, 0]
-        curl[:-1, :, :, 1] -= E[1:, :, :, 2] - E[:-1, :, :, 2]
-        #dy/dx-dx/dy
-        curl[:-1, :, :, 2] += E[1:, :, :, 1] - E[:-1, :, :, 1]
-        curl[:, :-1, :, 2] -= E[:, 1:, :, 0] - E[:, :-1, :, 0]
-        return curl # zero on the high edges of the region
-
-    def _curl_H(self, H: ndarray) -> ndarray:
-        curl = np.zeros_like(H)
-        # dz/dy - dy/dz
-        curl[:, 1:, :, 0] += H[:, 1:, :, 2] - H[:, :-1, :, 2]
-        curl[:, :, 1:, 0] -= H[:, :, 1:, 1] - H[:, :, :-1, 1]
-        # dx/dz-dz/dx
-        curl[:, :, 1:, 1] += H[:, :, 1:, 0] - H[:, :, :-1, 0]
-        curl[1:, :, :, 1] -= H[1:, :, :, 2] - H[:-1, :, :, 2]
-        # dy/dx-dx/dy
-        curl[1:, :, :, 2] += H[1:, :, :, 1] - H[:-1, :, :, 1]
-        curl[:, 1:, :, 2] -= H[:, 1:, :, 0] - H[:, :-1, :, 0]
-        return curl # zero on the low edges of the region
 
     # region distance-Index helpers
     def _add_object(self, obj: GridObject):
@@ -237,7 +258,8 @@ class Grid:
         elif isinstance(obj, Detector):
             dictionary = self.detectors
         elif isinstance(obj, Conductor):
-            dictionary = self.materials
+            dictionary = self.conductors
+            self.materialMask[obj.x, obj.y, obj.z] = 1
         elif isinstance(obj, Source):
             dictionary = self.sources
         else:
@@ -253,7 +275,8 @@ class Grid:
         elif isinstance(key, slice):
             return self._handle_slice(key)
         elif isinstance(key, float | int):
-            return self.handle_distance(key)
+            dist = self.handle_distance(key)
+            return slice(dist, dist + 1, 1)
         else:
             raise TypeError("key must be ndarray, slice, float, or int")
 
@@ -300,4 +323,7 @@ class Grid:
         y = self.handle_distance(y)
         z = self.handle_distance(z)
         return x, y, z
+
+    def positions(self, x: Index, y: Index, z: Index):
+        return self._positions[:, x, y, z]
     # endregion

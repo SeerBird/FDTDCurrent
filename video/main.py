@@ -12,7 +12,7 @@ def my_plotter(s):
 
 
 def my_starting_rho(r) -> np.ndarray:
-    return np.zeros_like(r[0]) + 1
+    return np.zeros_like(r[0])
 
 
 def sphere(theta, phi, r):
@@ -29,7 +29,7 @@ octant_sphere = sphere(params[0], params[1], 3.0)
 save_path = "video/"  # gotta correct the pathing at some point cuz this is ugly
 grid = fdtd.Grid("testGrid", (5.0, 4.0, 4.0), 0.1)
 # assign boundaries
-grid[0.0:4.0, 2.1:16.0, 0.3:0.4] = fdtd.Conductor("bababoi", 1, 1, 1)
+grid[0.0:4.0, 2.1:3.0, 0.3:0.4] = fdtd.Conductor("bababoi", 1, 1, 1)
 
 
 # add sources
@@ -37,16 +37,18 @@ def trigger():
     pass  # do smth before every tick
 
 
-grid.run(my_starting_rho, 10, save_path, trigger)  # grid runs, the only interaction with any outside code is through the
+grid.run(my_starting_rho, 10, save_path,
+         trigger)  # grid runs, the only interaction with any outside code is through the
 # trigger() function.
 
 
-newGrid = fdtd.Grid.load_from_file(save_path+f"{grid.name}.dat")  # we can load the grid from a file. this restores (or should restore)
+newGrid = fdtd.Grid.load_from_file(
+    save_path + f"{grid.name}.dat")  # we can load the grid from a file. this restores (or should restore)
 # all the GridObjects on the grid and sets the state to the initial state
 # after this, calling newGrid.load_next_frame() sets the grid to the next state
 det1 = fdtd.Detector("bababooie")  # new detectors can be added that weren't needed when the sim was running but will
 # be needed for the visualisation
-newGrid[:, :, :] = det1
+newGrid[0.0:4.0, 2.5, 0.3:0.4] = det1
 scene = fdtd.GridScene(newGrid, None, None)
 scene.render()  # scene.render(), among other things, calls scene.construct(), which is the method in which we need
 # to repeatedly use the grid state and call grid.load_next_frame()
