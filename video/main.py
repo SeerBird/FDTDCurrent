@@ -22,8 +22,8 @@ def sphere(theta, phi, r):
     return x, y, z
 
 
-u = np.linspace(0, np.pi / 2, 200)
-v = np.linspace(0, np.pi / 2, 200)
+u = np.linspace(0, np.pi / 2, 10)
+v = np.linspace(0, np.pi / 2, 10)
 params = np.meshgrid(u, v)
 octant_sphere = sphere(params[0], params[1], 3.0)
 save_path = "video/"  # gotta correct the pathing at some point cuz this is ugly
@@ -48,7 +48,7 @@ newGrid = fdtd.Grid.load_from_file(
 # after this, calling newGrid.load_next_frame() sets the grid to the next state
 det1 = fdtd.Detector("bababooie")  # new detectors can be added that weren't needed when the sim was running but will
 # be needed for the visualisation
-newGrid[0.0:4.0, 2.5, 0.3:0.4] = det1
+newGrid[octant_sphere] = det1
 scene = fdtd.GridScene(newGrid, None, None)
 scene.render()  # scene.render(), among other things, calls scene.construct(), which is the method in which we need
 # to repeatedly use the grid state and call grid.load_next_frame()

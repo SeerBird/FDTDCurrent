@@ -99,7 +99,7 @@ class Grid:
         else:
             self.courant = float(courant)
         self.dt = self.ds * self.courant / const.c
-        self.E: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
+        self.E: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))+1*10**16
         self.H: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.J: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.rho: ndarray = np.zeros((self.Nx, self.Ny, self.Nz))

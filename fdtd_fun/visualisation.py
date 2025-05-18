@@ -15,12 +15,13 @@ J = "J"
 rho = "rho"
 
 
-class GridScene(Scene):
+class GridScene(ThreeDScene):
     def __init__(self, grid: Grid, camera_pos, camera_dir):
         super().__init__()
         self._grid = grid
 
     def construct(self):
+        self.set_camera_orientation(phi=85 * DEGREES, theta=60 * DEGREES, zoom=0.8)
         grid = self._grid
         grid.load_next_frame()
         for _, cond in grid.conductors.items():
@@ -31,13 +32,13 @@ class GridScene(Scene):
         for name, det in grid.detectors.items():
             pos = grid.positions(det.x, det.y, det.z)
             pos = np.moveaxis(pos,0,-1)
-            _iter = np.ndindex(pos.shape[:-1])
+            itershape = pos.shape[:-1]
             fields = {}
-            detectors[name] = (_iter, pos, fields)
+            detectors[name] = (itershape, pos, fields)
             if det.E is not None:
                 field = AnyVectorField()
                   # TODO: OH MY GOD THIS IS SO HORRIBLE DO SOMETHINGGGG. the indexinggg.. moveaxis...
-                for index in _iter:
+                for index in np.ndindex(itershape):
                     field.add(field.get_vector(pos[index], np.moveaxis(det.E, 0, -1)[index]))
                 fields[E] = field
                 self.play(Create(field))
@@ -49,13 +50,13 @@ class GridScene(Scene):
             if self._grid.load_next_frame():
                 break
             for name, det in grid.detectors.items():
-                _iter = detectors[name][0]
+                itershape = detectors[name][0]
                 pos = detectors[name][1]
                 fields = detectors[name][2]
                 if det.E is not None:
                     nextField = AnyVectorField()
                     index: tuple
-                    for index in _iter:
+                    for index in np.ndindex(itershape):
                         nextField.add(nextField.get_vector(pos[index], np.moveaxis(det.E, 0, -1)[index]))
                     self.play(Transform(fields[E], nextField))
                     fields[E] = nextField
