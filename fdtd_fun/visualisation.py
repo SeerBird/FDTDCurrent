@@ -38,18 +38,18 @@ class GridScene(ThreeDScene):
                 for index in np.ndindex(itershape):
                     field.add(field.get_vector(pos[index], np.moveaxis(det.E, 0, -1)[index]))
                 fields[Field.E] = field
-                self.play(Create(field))
+                self.add(field)
             if det.rho is not None:
                 field = ScalarField()
                 index: tuple
                 for index in np.ndindex(itershape):
                     field.add(field.get_point(pos[index],det.rho[index]))
-                self.play(Create(field))
                 fields[Field.rho] = field
+                self.add(field)
 
                 # fade in or smth
             # repeat for H, J, rho(gotta make the scalar field class)
-
+        self.wait(1 / 15)
         while True:
             if self._grid.load_next_frame():
                 break
@@ -62,19 +62,18 @@ class GridScene(ThreeDScene):
                     index: tuple
                     for index in np.ndindex(itershape):
                         nextField.add(nextField.get_vector(pos[index], np.moveaxis(det.E, 0, -1)[index]))
-                    self.play(Transform(fields[Field.E], nextField,
-                                        rate_func=lambda x: x,
-                                        replace_mobject_with_target_in_scene=True))
+                    self.remove(fields[Field.E])
+                    self.add(nextField)
                     fields[Field.E] = nextField
                 if det.rho is not None:
                     nextField = ScalarField()
                     index: tuple
                     for index in np.ndindex(itershape):
                         nextField.add(nextField.get_point(pos[index],det.rho[index]))
-                    self.play(Transform(fields[Field.rho], nextField,
-                                        rate_func=lambda x: x,
-                                        replace_mobject_with_target_in_scene=True))
+                    self.remove(fields[Field.rho])
+                    self.add(nextField)
                     fields[Field.rho] = nextField
+            self.wait(1 / 15)
 
 
 class AnyVectorField(VGroup):
