@@ -12,6 +12,13 @@ from .detector import Detector
 from .conductor import Conductor
 from .source import Source
 from .typing_ import Index
+from enum import Enum
+
+class Field(Enum):
+    E = 1
+    H = 2
+    J = 3
+    rho = 4
 
 
 class State:
@@ -73,7 +80,7 @@ class Grid:
         :param ds: the spacial step of the grid, in meters
         :param courant: the courant number for the simulation
         """
-        self.file = None  # TODO: annotate this thing? what's its type?
+        self.file = None
         self.name: str = name
         self.boundaries: dict[str, Boundary] = {}
         self.detectors: dict[str, Detector] = {}
@@ -157,8 +164,7 @@ class Grid:
         # equalize - how? antidivergence?
         if save_path is not None:
             self.file = open(save_path + f"{self.name}.dat", "wb")
-            # TODO: obviously add error handling
-            pickle.dump(self, self.file)
+            pickle.dump(self, self.file,protocol=-1)
         if isinstance(time, float):
             time = int(time / self.dt)
         while self.t < time:
@@ -177,8 +183,6 @@ class Grid:
         :return: new Grid object loaded from the file
         """
         file = open(save_path, "rb")
-        # TODO: more error handling please
-        #  also this is some weeeeird logic around the saving/loading...
         grid = pickle.load(file)
         if isinstance(grid, Grid):
             grid.file = file
@@ -219,7 +223,7 @@ class Grid:
         for _, src in self.sources.items():
             src.apply()
         if self.file is not None:
-            pickle.dump(State(self.E, self.H, self.J, self.rho), self.file)
+            pickle.dump(State(self.E, self.H, self.J, self.rho), self.file,protocol = -1)
         self._update_E()
         self._update_H()
         for _, material in self.conductors.items():

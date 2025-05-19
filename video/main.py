@@ -1,3 +1,4 @@
+import manim
 import numpy as np, fdtd_fun as fdtd
 from numpy import ndarray, dtype, bool
 
@@ -31,9 +32,9 @@ def boogy_woogy(r:np.ndarray,t:float)->State:
 u = np.linspace(0, np.pi / 2, 10)
 v = np.linspace(0, np.pi / 2, 10)
 params = np.meshgrid(u, v)
-octant_sphere = sphere(params[0], params[1], 3.0)
+octant_sphere = sphere(params[0], params[1], 2.0)
 save_path = "video/"  # gotta correct the pathing at some point cuz this is ugly
-grid = fdtd.Grid("testGrid", (5.0, 4.0, 4.0), 0.1)
+grid = fdtd.Grid("testGrid", (5.0, 4.0, 3.0), 0.1)
 # assign boundaries
 grid[0.0:4.0, 2.1:3.0, 0.3:0.4] = fdtd.Conductor("bababoi", 1, 1, 1)
 grid[:,:,:] = fdtd.Source("boogy", boogy_woogy)
@@ -55,6 +56,7 @@ newGrid = fdtd.Grid.load_from_file(
 det1 = fdtd.Detector("bababooie")  # new detectors can be added that weren't needed when the sim was running but will
 # be needed for the visualisation
 newGrid[octant_sphere] = det1
+manim.config.quality = "low_quality"
 scene = fdtd.GridScene(newGrid, None, None)
 scene.render()  # scene.render(), among other things, calls scene.construct(), which is the method in which we need
 # to repeatedly use the grid state and call grid.load_next_frame()

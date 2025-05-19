@@ -45,8 +45,6 @@ class Conductor(GridObject):
         pass
 
     def _update_J(self) -> None:
-        # TODO: consider moving everything to do with J and rho into the conductor code and
-        #  splitting the field arrays into per-conductor arrays
         E = self._grid.E[:, self.x, self.y, self.z]
         H = self._grid.H[:, self.x, self.y, self.z]
         J = self._grid.J[:, self.x, self.y, self.z]

@@ -4,15 +4,12 @@ from typing import TYPE_CHECKING, Any, Iterable, Callable, Sequence
 
 from manim.mobject.vector_field import DEFAULT_SCALAR_FIELD_COLORS
 
+from fdtd_fun.grid import Field
+
 if TYPE_CHECKING:
     from fdtd_fun import Grid, Detector, Conductor, Source
 
 from manim import *
-
-E = "E"
-H = "H"
-J = "J"
-rho = "rho"
 
 
 class GridScene(ThreeDScene):
@@ -40,7 +37,7 @@ class GridScene(ThreeDScene):
                 # TODO: OH MY GOD THIS IS SO HORRIBLE DO SOMETHINGGGG. the indexinggg.. moveaxis...
                 for index in np.ndindex(itershape):
                     field.add(field.get_vector(pos[index], np.moveaxis(det.E, 0, -1)[index]))
-                fields[E] = field
+                fields[Field.E] = field
                 self.play(Create(field))
 
                 # fade in or smth
@@ -58,9 +55,9 @@ class GridScene(ThreeDScene):
                     index: tuple
                     for index in np.ndindex(itershape):
                         nextField.add(nextField.get_vector(pos[index], np.moveaxis(det.E, 0, -1)[index]))
-                    self.play(Transform(fields[E], nextField, rate_func=lambda x: x))
-                    self.remove(fields[E])
-                    fields[E] = nextField
+                    self.play(Transform(fields[Field.E], nextField, rate_func=lambda x: x))
+                    self.remove(fields[Field.E])
+                    fields[Field.E] = nextField
 
 
 class AnyVectorField(VGroup):
@@ -112,5 +109,6 @@ class AnyVectorField(VGroup):
             value *= self.length_func(norm) / norm
         vect = Vector(value, **self.vector_config)
         vect.shift(pos)
+        # vect = Arrow3D(pos,pos+value, **self.vector_config) #TODO: make this Arrow3D without the computer killing itself
         vect.set_color(ManimColor.from_rgb(self.value_to_rgb(pos)))
         return vect

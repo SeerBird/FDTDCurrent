@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fdtd_fun.grid import Grid
+    from fdtd_fun.grid import Grid, Field
     from fdtd_fun.typing_ import Index
     from numpy import ndarray
 
@@ -12,10 +12,9 @@ from fdtd_fun.grid_object import GridObject
 
 ## Object
 class Detector(GridObject):
-    def __init__(self, name: str):
-        # TODO: add parameters to control which fields this is taking and
-        #  add temporal resolution
-        # the fields measured by the conductor the last time the read() method was called
+    def __init__(self, name: str, toRead:dict[Field,bool]):
+        # TODO: add temporal resolution?
+        self.toRead:dict[Field,bool] = toRead
         self.E: ndarray | None = None  # shape starts with 3, so the first index selects the vector component
         self.H: ndarray | None = None
         self.J: ndarray | None = None
@@ -26,10 +25,14 @@ class Detector(GridObject):
         pass
 
     def read(self):
-        self.E = self._grid.E[:, self.x, self.y, self.z]
-        self.J = self._grid.J[:, self.x, self.y, self.z]
-        self.H = self._grid.H[:, self.x, self.y, self.z]
-        self.rho = self._grid.rho[self.x, self.y, self.z]
+        if self.toRead[Field.E]:
+            self.E = self._grid.E[:, self.x, self.y, self.z]
+        if self.toRead[Field.J]:
+            self.J = self._grid.J[:, self.x, self.y, self.z]
+        if self.toRead[Field.H]:
+            self.H = self._grid.H[:, self.x, self.y, self.z]
+        if self.toRead[Field.rho]:
+            self.rho = self._grid.rho[self.x, self.y, self.z]
         # TODO: decide if we want to spend time copying from views
         '''
         #like this:
