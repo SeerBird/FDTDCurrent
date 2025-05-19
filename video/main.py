@@ -2,6 +2,7 @@ import manim
 import numpy as np, fdtd_fun as fdtd
 from numpy import ndarray, dtype, bool
 
+from fdtd_fun.constants import Field
 from fdtd_fun.grid import State
 
 
@@ -44,7 +45,7 @@ def trigger():
     pass  # do smth before every tick
 
 
-grid.run(my_starting_rho, 10, save_path,
+grid.run(my_starting_rho, 5, save_path,
          trigger)  # grid runs, the only interaction with any outside code is through the
 # trigger() function.
 
@@ -53,7 +54,7 @@ newGrid = fdtd.Grid.load_from_file(
     save_path + f"{grid.name}.dat")  # we can load the grid from a file. this restores (or should restore)
 # all the GridObjects on the grid and sets the state to the initial state
 # after this, calling newGrid.load_next_frame() sets the grid to the next state
-det1 = fdtd.Detector("bababooie")  # new detectors can be added that weren't needed when the sim was running but will
+det1 = fdtd.Detector("bababooie",{Field.E:False,Field.rho:True})  # new detectors can be added that weren't needed when the sim was running but will
 # be needed for the visualisation
 newGrid[octant_sphere] = det1
 manim.config.quality = "low_quality"

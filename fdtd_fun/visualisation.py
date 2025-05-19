@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Iterable, Callable, Sequence
 
+import manim
 from manim.mobject.vector_field import DEFAULT_SCALAR_FIELD_COLORS
 
-from fdtd_fun.grid import Field
+from fdtd_fun.constants import Field
 
 if TYPE_CHECKING:
     from fdtd_fun import Grid, Detector, Conductor, Source
@@ -39,6 +40,13 @@ class GridScene(ThreeDScene):
                     field.add(field.get_vector(pos[index], np.moveaxis(det.E, 0, -1)[index]))
                 fields[Field.E] = field
                 self.play(Create(field))
+            if det.rho is not None:
+                field = ScalarField()
+                index: tuple
+                for index in np.ndindex(itershape):
+                    field.add(field.get_point(pos[index],det.rho[index]))
+                self.play(Create(field))
+                fields[Field.rho] = field
 
                 # fade in or smth
             # repeat for H, J, rho(gotta make the scalar field class)
@@ -58,6 +66,14 @@ class GridScene(ThreeDScene):
                     self.play(Transform(fields[Field.E], nextField, rate_func=lambda x: x))
                     self.remove(fields[Field.E])
                     fields[Field.E] = nextField
+                if det.rho is not None:
+                    nextField = ScalarField()
+                    index: tuple
+                    for index in np.ndindex(itershape):
+                        nextField.add(nextField.get_point(pos[index],det.rho[index]))
+                    self.play(Transform(fields[Field.rho], nextField, rate_func=lambda x: x))
+                    self.remove(fields[Field.rho])
+                    fields[Field.rho] = nextField
 
 
 class AnyVectorField(VGroup):
@@ -110,5 +126,48 @@ class AnyVectorField(VGroup):
         vect = Vector(value, **self.vector_config)
         vect.shift(pos)
         # vect = Arrow3D(pos,pos+value, **self.vector_config) #TODO: make this Arrow3D without the computer killing itself
-        vect.set_color(ManimColor.from_rgb(self.value_to_rgb(pos)))
+        vect.set_color(ManimColor.from_rgb(self.value_to_rgb(value)))
         return vect
+
+
+class ScalarField(VGroup):
+    def __init__(self, size_func: Callable[[float], float] = lambda norm: 0.2 / (1 + np.exp(-norm)),
+                 min_value: float = 0,
+                 max_value: float = 1,
+                 colors=None,  # has a default
+                 color_scheme: Callable[[float], float] | None = None, **kwargs: Any):
+        super().__init__([], **kwargs)
+        if colors is None:
+            colors = DEFAULT_SCALAR_FIELD_COLORS
+        if color_scheme is None:
+            def color_scheme(p:float):
+                return p
+        self.color_scheme = color_scheme
+        self.rgbs = np.array(list(map(color_to_rgb, colors)))
+        self.size_func = size_func
+
+        def value_to_rgb(value: float):
+            color_value = np.clip(
+                self.color_scheme(value),
+                min_value,
+                max_value,
+            )
+            alpha = inverse_interpolate(
+                min_value,
+                max_value,
+                color_value,
+            )
+            alpha *= len(self.rgbs) - 1
+            c1 = self.rgbs[int(alpha)]
+            c2 = self.rgbs[min(int(alpha + 1), len(self.rgbs) - 1)]
+            alpha %= 1
+            return (1 - alpha) * c1 + alpha * c2
+
+        self.value_to_rgb = value_to_rgb
+
+    def get_point(self, pos: np.ndarray, value: float):
+        value = self.size_func(value)
+        point = Cube(value)
+        point.shift(pos)
+        point.set_color(ManimColor.from_rgb(self.value_to_rgb(value)))
+        return point

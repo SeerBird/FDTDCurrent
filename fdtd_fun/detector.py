@@ -1,8 +1,9 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from fdtd_fun.constants import Field
+
 if TYPE_CHECKING:
-    from fdtd_fun.grid import Grid, Field
     from fdtd_fun.typing_ import Index
     from numpy import ndarray
 
@@ -25,13 +26,13 @@ class Detector(GridObject):
         pass
 
     def read(self):
-        if self.toRead[Field.E]:
+        if self.toRead.get(Field.E):
             self.E = self._grid.E[:, self.x, self.y, self.z]
-        if self.toRead[Field.J]:
+        if self.toRead.get(Field.J):
             self.J = self._grid.J[:, self.x, self.y, self.z]
-        if self.toRead[Field.H]:
+        if self.toRead.get(Field.H):
             self.H = self._grid.H[:, self.x, self.y, self.z]
-        if self.toRead[Field.rho]:
+        if self.toRead.get(Field.rho):
             self.rho = self._grid.rho[self.x, self.y, self.z]
         # TODO: decide if we want to spend time copying from views
         '''

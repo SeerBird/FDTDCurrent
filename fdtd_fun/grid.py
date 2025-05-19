@@ -14,12 +14,6 @@ from .source import Source
 from .typing_ import Index
 from enum import Enum
 
-class Field(Enum):
-    E = 1
-    H = 2
-    J = 3
-    rho = 4
-
 
 class State:
     def __init__(self, E: ndarray | None, H: ndarray | None, J: ndarray | None, rho: ndarray | None):
