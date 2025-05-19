@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Iterable, Callable, Sequence
 
-import manim
 from manim.mobject.vector_field import DEFAULT_SCALAR_FIELD_COLORS
 
 from fdtd_fun.constants import Field
@@ -28,8 +27,8 @@ class GridScene(ThreeDScene):
             pass  # maybe a bounding box as well?
         detectors = {}
         for name, det in grid.detectors.items():
-            pos = grid.positions(det.x, det.y, det.z)
-            pos = np.moveaxis(pos, 0, -1)
+            pos = grid.positions(det.x, det.y, det.z) # shape = (3,...)
+            pos = np.moveaxis(pos, 0, -1) # shape = (...,3)
             itershape = pos.shape[:-1]
             fields = {}
             detectors[name] = (itershape, pos, fields)
@@ -63,16 +62,18 @@ class GridScene(ThreeDScene):
                     index: tuple
                     for index in np.ndindex(itershape):
                         nextField.add(nextField.get_vector(pos[index], np.moveaxis(det.E, 0, -1)[index]))
-                    self.play(Transform(fields[Field.E], nextField, rate_func=lambda x: x))
-                    self.remove(fields[Field.E])
+                    self.play(Transform(fields[Field.E], nextField,
+                                        rate_func=lambda x: x,
+                                        replace_mobject_with_target_in_scene=True))
                     fields[Field.E] = nextField
                 if det.rho is not None:
                     nextField = ScalarField()
                     index: tuple
                     for index in np.ndindex(itershape):
                         nextField.add(nextField.get_point(pos[index],det.rho[index]))
-                    self.play(Transform(fields[Field.rho], nextField, rate_func=lambda x: x))
-                    self.remove(fields[Field.rho])
+                    self.play(Transform(fields[Field.rho], nextField,
+                                        rate_func=lambda x: x,
+                                        replace_mobject_with_target_in_scene=True))
                     fields[Field.rho] = nextField
 
 
@@ -81,7 +82,7 @@ class AnyVectorField(VGroup):
     def __init__(self,
                  length_func: Callable[[float], float] = lambda norm: 1.0 / (1 + np.exp(-norm)),
                  min_vec_norm: float = 0,
-                 max_vec_norm: float = 1,
+                 max_vec_norm: float = 1, #TODO: figure out how to input/calculate the range from the scene constructor
                  colors=None,  # has a default
                  color_scheme: Callable[[np.ndarray], float] | None = None,
                  vector_config: dict | None = None,
