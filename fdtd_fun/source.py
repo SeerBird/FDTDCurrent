@@ -15,37 +15,20 @@ from .grid_object import GridObject
 class Source(GridObject):
 
     def __init__(self, name: str,
-                 function: Callable[[np.ndarray, float], State]):
+                 function: Callable[[np.ndarray, float], ndarray]):
         """
 
-        :param name:
-        :param function:
+        :param name: yeah.
+        :param function: function that, given a cartesian position ndarray, returns
+         an emf vector ndarray of the same shape
         """
         super().__init__(name)
         self.function = function
-        self.lastState: State | None = None
         self.positions: np.ndarray | None = None
 
     def apply(self):
-        self.lastState = self.function(self.positions, self._grid.time())
-        if self.lastState.E is not None:
-            self._grid.E[:,self.x,self.y,self.z]+=self.lastState.E
-        if self.lastState.H is not None:
-            self._grid.H[:,self.x,self.y,self.z]+=self.lastState.H
-        if self.lastState.J is not None:
-            self._grid.J[:,self.x,self.y,self.z]+=self.lastState.J
-        if self.lastState.rho is not None:
-            self._grid.rho[self.x,self.y,self.z]+=self.lastState.rho
+        self._grid.emf[:,self.x,self.y,self.z] = self.function(self.positions, self._grid.time())
 
-    def cancel(self):
-        if self.lastState.E is not None:
-            self._grid.E[:,self.x, self.y, self.z] -= self.lastState.E
-        if self.lastState.H is not None:
-            self._grid.H[:,self.x, self.y, self.z] -= self.lastState.H
-        if self.lastState.J is not None:
-            self._grid.J[:,self.x, self.y, self.z] -= self.lastState.J
-        if self.lastState.rho is not None:
-            self._grid.rho[self.x, self.y, self.z] -= self.lastState.rho
 
     def _register_grid(self, grid: Grid, x: Index, y: Index, z: Index):
         super()._register_grid(grid, x, y, z)

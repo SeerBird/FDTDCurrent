@@ -54,9 +54,9 @@ def _curl_H(H: ndarray) -> ndarray:
 
 def _div_E(E: ndarray) -> ndarray:
     div = np.zeros((E.shape[1], E.shape[2], E.shape[3]))
-    div[1:, :, :] += E[0, 1:, :, :] - E[0, :-1, :, :]
-    div[:, 1:, :] += E[1, :, 1:, :] - E[1, :, :-1, :]
-    div[:, :, 1:] += E[2, :, :, 1:] - E[2, :, :, :-1]
+    div[:-1, :, :] += E[0, 1:, :, :] - E[0, :-1, :, :]
+    div[:, :-1, :] += E[1, :, 1:, :] - E[1, :, :-1, :]
+    div[:, :, :-1] += E[2, :, :, 1:] - E[2, :, :, :-1]
     return div
 
 
@@ -104,6 +104,7 @@ class Grid:
         self.H: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.J: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.rho: ndarray = np.zeros((self.Nx, self.Ny, self.Nz))
+        self.emf: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.materialMask = np.zeros((self.Nx, self.Ny, self.Nz), int)
 
     def __setitem__(self, key, obj):
@@ -158,7 +159,7 @@ class Grid:
         # equalize - how? antidivergence?
         if save_path is not None:
             self.file = open(save_path + f"{self.name}.dat", "wb")
-            pickle.dump(self, self.file,protocol=-1)
+            pickle.dump(self, self.file, protocol=-1)
         if isinstance(time, float):
             time = int(time / self.dt)
         while self.t < time:
@@ -214,26 +215,25 @@ class Grid:
         return _dict
 
     def _step(self):
+        print(np.sum(self.rho))
         for _, src in self.sources.items():
-            src.apply() #TODO: make source an EMF rather than an E field
+            src.apply()
         if self.file is not None:
-            pickle.dump(State(self.E, self.H, self.J, self.rho), self.file,protocol = -1)
+            pickle.dump(State(self.E, self.H, self.J, self.rho), self.file, protocol=-1)
         self._update_E()
         self._update_H()
         for _, material in self.conductors.items():
             material._update_J()
-            self.rho -= _div_E(self.J) * self.materialMask
+        self.rho -= _div_E(self.J) * self.materialMask * self.dt / self.ds
         for _, det in self.detectors.items():
             det.read()
-        for _, src in self.sources.items():
-            src.cancel()
 
     def _update_E(self):
         for _, boundary in self.boundaries.items():
             boundary.update_phi_E()  # etc etc
 
         curl = _curl_H(self.H)
-        self.E += self.courant * (curl - self.J) / np.sqrt(const.eps_0 / const.mu_0)
+        self.E += (curl / self.ds - self.J) / const.eps_0 * self.dt
 
         for _, boundary in self.boundaries.items():
             boundary.update_E()  # etc etc
@@ -243,7 +243,7 @@ class Grid:
             boundary.update_phi_H()  # etc etc
 
         curl = _curl_E(self.E)
-        self.H += self.courant * -curl * np.sqrt(const.eps_0 / const.mu_0)
+        self.H += -curl / self.ds / const.mu_0 * self.dt
 
         for _, boundary in self.boundaries.items():
             boundary.update_H()  # etc etc

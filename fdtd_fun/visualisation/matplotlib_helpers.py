@@ -46,6 +46,10 @@ def animate(grid: Grid, preferredRatio: float = 1.0):
             fields[Field.J] = True
             names.append(f"{name}:J")
             total += 1
+        if det.H is not None:
+            fields[Field.H] = True
+            names.append(f"{name}:H")
+            total += 1
     # region get layout
     xn: int = 1
     yn: int = 1
@@ -99,7 +103,14 @@ def animate(grid: Grid, preferredRatio: float = 1.0):
                     #frameArtists.append(fig.colorbar(axesImage, cax=ax1d[counter]))
                     #TODO: figure out why colorbar is so slow/switch to FuncAnimation
                     counter += 1
-
+                if fields.get(Field.H):
+                    field = det.H
+                    fieldImage = np.sqrt(field[0] ** 2 + field[1] ** 2 + field[2] ** 2).reshape(shapeList)
+                    axesImage = ax1d[counter].imshow(fieldImage, cmap="plasma", interpolation="nearest")
+                    frameArtists.append(axesImage)
+                    #frameArtists.append(fig.colorbar(axesImage, cax=ax1d[counter]))
+                    #TODO: figure out why colorbar is so slow/switch to FuncAnimation
+                    counter += 1
         ims.append(frameArtists)
         if grid.load_next_frame():
             break
