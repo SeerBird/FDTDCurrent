@@ -29,21 +29,21 @@ class Source(GridObject):
     def apply(self):
         self.lastState = self.function(self.positions, self._grid.time())
         if self.lastState.E is not None:
-            self._grid.E[self.x,self.y,self.z]+=self.lastState.E
+            self._grid.E[:,self.x,self.y,self.z]+=self.lastState.E
         if self.lastState.H is not None:
-            self._grid.H[self.x,self.y,self.z]+=self.lastState.H
+            self._grid.H[:,self.x,self.y,self.z]+=self.lastState.H
         if self.lastState.J is not None:
-            self._grid.J[self.x,self.y,self.z]+=self.lastState.J
+            self._grid.J[:,self.x,self.y,self.z]+=self.lastState.J
         if self.lastState.rho is not None:
             self._grid.rho[self.x,self.y,self.z]+=self.lastState.rho
 
     def cancel(self):
         if self.lastState.E is not None:
-            self._grid.E[self.x, self.y, self.z] -= self.lastState.E
+            self._grid.E[:,self.x, self.y, self.z] -= self.lastState.E
         if self.lastState.H is not None:
-            self._grid.H[self.x, self.y, self.z] -= self.lastState.H
+            self._grid.H[:,self.x, self.y, self.z] -= self.lastState.H
         if self.lastState.J is not None:
-            self._grid.J[self.x, self.y, self.z] -= self.lastState.J
+            self._grid.J[:,self.x, self.y, self.z] -= self.lastState.J
         if self.lastState.rho is not None:
             self._grid.rho[self.x, self.y, self.z] -= self.lastState.rho
 
@@ -53,3 +53,8 @@ class Source(GridObject):
 
     def _validate_position(self, x: Index, y: Index, z: Index):
         pass
+
+    def __getstate__(self):
+        _dict = super().__getstate__()
+        _dict.pop("function")
+        return _dict

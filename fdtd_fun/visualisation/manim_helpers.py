@@ -18,7 +18,8 @@ class GridScene(ThreeDScene):
         self._grid = grid
 
     def construct(self):
-        self.set_camera_orientation(phi=85 * DEGREES, theta=60 * DEGREES, zoom=0.8)
+        ds = self._grid.ds
+        self.set_camera_orientation(frame_center=(10*ds,10*ds,10*ds), zoom=0.5)
         grid = self._grid
         grid.load_next_frame()
         for _, cond in grid.conductors.items():
@@ -132,8 +133,8 @@ class AnyVectorField(VGroup):
 
 class ScalarField(VGroup):
     def __init__(self, size_func: Callable[[float], float] = lambda norm: 0.2 / (1 + np.exp(-norm)),
-                 min_value: float = 0,
-                 max_value: float = 1,
+                 min_value: float = -2*10**-12,
+                 max_value: float = 2*10**-12,
                  colors=None,  # has a default
                  color_scheme: Callable[[float], float] | None = None, **kwargs: Any):
         super().__init__([], **kwargs)
@@ -166,8 +167,8 @@ class ScalarField(VGroup):
         self.value_to_rgb = value_to_rgb
 
     def get_point(self, pos: np.ndarray, value: float):
-        value = self.size_func(value)
-        point = Cube(value)
+        size = self.size_func(value)
+        point = Cube(size)
         point.shift(pos)
         point.set_color(ManimColor.from_rgb(self.value_to_rgb(value)))
         return point

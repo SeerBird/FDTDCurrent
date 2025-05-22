@@ -215,7 +215,7 @@ class Grid:
 
     def _step(self):
         for _, src in self.sources.items():
-            src.apply()
+            src.apply() #TODO: make source an EMF rather than an E field
         if self.file is not None:
             pickle.dump(State(self.E, self.H, self.J, self.rho), self.file,protocol = -1)
         self._update_E()
