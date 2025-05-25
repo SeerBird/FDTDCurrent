@@ -102,6 +102,7 @@ class Grid:
         self.dt = self.ds * self.courant / const.c
         self.E: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.H: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
+        self.lastH:ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.J: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.rho: ndarray = np.zeros((self.Nx, self.Ny, self.Nz))
         self.emf: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
@@ -220,11 +221,13 @@ class Grid:
             src.apply()
         if self.file is not None:
             pickle.dump(State(self.E, self.H, self.J, self.rho), self.file, protocol=-1)
-        self._update_E()
         self._update_H()
         for _, material in self.conductors.items():
-            material._update_J()
-        self.rho -= _div_E(self.J) * self.materialMask * self.dt / self.ds
+            material._get_J()
+        self._update_rho()
+        self._update_E()
+
+
         for _, det in self.detectors.items():
             det.read()
 
@@ -239,6 +242,7 @@ class Grid:
             boundary.update_E()  # etc etc
 
     def _update_H(self):
+        self.lastH = self.H
         for _, boundary in self.boundaries.items():
             boundary.update_phi_H()  # etc etc
 
@@ -247,6 +251,19 @@ class Grid:
 
         for _, boundary in self.boundaries.items():
             boundary.update_H()  # etc etc
+
+    def _update_rho(self):
+        drho = -_div_E(self.J) * self.dt / self.ds
+        mask_traversal = np.asarray((self.materialMask[2:,1:-1,1:-1],
+                          self.materialMask[0:-2,1:-1,1:-1],
+                          self.materialMask[1:-1,2:,1:-1],
+                          self.materialMask[1:-1,0:-2,1:-1],
+                          self.materialMask[1:-1,1:-1,2:],
+                          self.materialMask[1:-1,1:-1,0:-2])
+                          )
+        mask_traversal[:,self.materialMask[1:-1,1:-1,1:-1]==1] = 0
+        self.rho+=drho
+
 
     # region distance-Index helpers
     def _add_object(self, obj: GridObject):

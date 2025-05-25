@@ -34,6 +34,8 @@ class GridScene(ThreeDScene):
             fields = {}
             detectors[name] = (itershape, pos, fields)
             if det.E is not None:
+                # geth the detector-set minimum and maximum values and use them in the constructor of AnyVectorField
+                # use spacing of detector as well
                 field = AnyVectorField()
                 # TODO: OH MY GOD THIS IS SO HORRIBLE DO SOMETHINGGGG. the indexinggg.. moveaxis...
                 for index in np.ndindex(itershape):

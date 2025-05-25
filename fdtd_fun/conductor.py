@@ -12,13 +12,21 @@ if TYPE_CHECKING:
 from .grid_object import GridObject
 
 
-def _J_cross_H(J: ndarray, H: ndarray):
-    # TODO: figure out how to cross an E-type field and a B-type field
-    cross = np.empty_like(J)  # make sure all values are set when using empty_like
-    cross[0] = J[1] * H[2] - J[2] * H[1]
-    cross[1] = J[2] * H[0] - J[0] * H[2]
-    cross[2] = J[0] * H[1] - J[1] * H[0]
+def _E_cross_H(E: ndarray, H: ndarray):
+    # TODO: figure out how to cross and dot an E-type field and a B-type field
+    cross = np.empty_like(E)  # make sure all values are set when using empty_like
+    cross[0] = E[1] * H[2] - E[2] * H[1]
+    cross[1] = E[2] * H[0] - E[0] * H[2]
+    cross[2] = E[0] * H[1] - E[1] * H[0]
     return cross
+
+
+def _E_dot_H(E: ndarray, H: ndarray):
+    return E[0] * H[0] + E[1] * H[1] + E[2] * H[2]  # TODO: fix this!
+
+
+def _H_dot_H(H: ndarray):
+    return H[0] ** 2 + H[1] ** 2 + H[2] ** 2
 
 
 class Conductor(GridObject):
@@ -33,9 +41,9 @@ class Conductor(GridObject):
         :param sigma: the conductivity of the conductor
         """
         super().__init__(name)
-        if sigma<=0:
+        if sigma <= 0:
             raise ValueError(f"Conductivity must be positive, {sigma} provided")
-        if s==0:
+        if s == 0:
             raise ValueError(f"Specific charge must be non-zero")
         self.sigma = sigma
         self.rho_f = rho_f
@@ -44,10 +52,14 @@ class Conductor(GridObject):
     def _validate_position(self, x: Index, y: Index, z: Index):
         pass
 
-    def _update_J(self) -> None:
-        E = self._grid.E[:, self.x, self.y, self.z]
-        H = self._grid.H[:, self.x, self.y, self.z]
-        J = self._grid.J[:, self.x, self.y, self.z]
-        emf = self._grid.emf[:, self.x, self.y, self.z]
-        self._grid.J[:, self.x, self.y, self.z] += self._grid.dt * (
-                self.s * (self.rho_f * (E+emf) + const.mu_0 * _J_cross_H(J, H) - self.rho_f / self.sigma * J))
+    def _get_J(self) -> None:
+        E = self._grid.E[:, self.x, self.y, self.z] + self._grid.emf[:, self.x, self.y, self.z]
+        H = (self._grid.H[:, self.x, self.y, self.z] + self._grid.lastH[:, self.x, self.y, self.z])/2
+        sigma = self.sigma
+        rho = self.rho_f
+        '''
+        self._grid.J[:, self.x, self.y, self.z] = ((sigma * rho ** 2 * E +
+                                                    const.mu_0 * sigma ** 2 * rho * _E_cross_H(E, H) +
+                                                    const.mu_0 ** 2 * sigma ** 3 * _E_dot_H(E, H) * H) /
+                                                   (rho ** 2 + sigma ** 2 * _H_dot_H(H)))'''
+        self._grid.J[:, self.x, self.y, self.z] = self.sigma * E
