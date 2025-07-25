@@ -4,6 +4,7 @@ from typing import Callable
 import numpy as np
 import pickle
 from numpy import ndarray
+import scipy.sparse.linalg as sparse
 
 from . import constants as const
 from .grid_object import GridObject
@@ -102,7 +103,7 @@ class Grid:
         self.dt = self.ds * self.courant / const.c
         self.E: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.H: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
-        self.lastH:ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
+        self.lastH: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.J: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.rho: ndarray = np.zeros((self.Nx, self.Ny, self.Nz))
         self.emf: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
@@ -163,6 +164,7 @@ class Grid:
             pickle.dump(self, self.file, protocol=-1)
         if isinstance(time, float):
             time = int(time / self.dt)
+        self._prep_matrix()
         while self.t < time:
             self._step()
             if trigger is not None:
@@ -171,6 +173,7 @@ class Grid:
         if self.file is not None:
             self.file.close()
 
+    # region file stuff
     @classmethod
     def load_from_file(cls, save_path: str) -> Grid:
         """
@@ -215,6 +218,11 @@ class Grid:
         _dict.pop("rho")
         return _dict
 
+    # endregion
+
+    def _prep_matrix(self):
+        pass
+
     def _step(self):
         print(np.sum(self.rho))
         for _, src in self.sources.items():
@@ -226,7 +234,6 @@ class Grid:
             material._get_J()
         self._update_rho()
         self._update_E()
-
 
         for _, det in self.detectors.items():
             det.read()
@@ -254,16 +261,15 @@ class Grid:
 
     def _update_rho(self):
         drho = -_div_E(self.J) * self.dt / self.ds
-        mask_traversal = np.asarray((self.materialMask[2:,1:-1,1:-1],
-                          self.materialMask[0:-2,1:-1,1:-1],
-                          self.materialMask[1:-1,2:,1:-1],
-                          self.materialMask[1:-1,0:-2,1:-1],
-                          self.materialMask[1:-1,1:-1,2:],
-                          self.materialMask[1:-1,1:-1,0:-2])
-                          )
-        mask_traversal[:,self.materialMask[1:-1,1:-1,1:-1]==1] = 0
-        self.rho+=drho
-
+        mask_traversal = np.asarray((self.materialMask[2:, 1:-1, 1:-1],
+                                     self.materialMask[0:-2, 1:-1, 1:-1],
+                                     self.materialMask[1:-1, 2:, 1:-1],
+                                     self.materialMask[1:-1, 0:-2, 1:-1],
+                                     self.materialMask[1:-1, 1:-1, 2:],
+                                     self.materialMask[1:-1, 1:-1, 0:-2])
+                                    )
+        mask_traversal[:, self.materialMask[1:-1, 1:-1, 1:-1] == 1] = 0
+        self.rho += drho
 
     # region distance-Index helpers
     def _add_object(self, obj: GridObject):

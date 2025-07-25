@@ -55,11 +55,12 @@ class Conductor(GridObject):
     def _get_J(self) -> None:
         E = self._grid.E[:, self.x, self.y, self.z] + self._grid.emf[:, self.x, self.y, self.z]
         H = (self._grid.H[:, self.x, self.y, self.z] + self._grid.lastH[:, self.x, self.y, self.z])/2
-        sigma = self.sigma
-        rho = self.rho_f
+        J = self._grid.J[:, self.x, self.y, self.z]
+        self._grid.J[:, self.x, self.y, self.z] += self._grid.dt * (
+                self.s * (self.rho_f * E + const.mu_0 * _E_cross_H(J, H) - self.rho_f / self.sigma * J))
         '''
         self._grid.J[:, self.x, self.y, self.z] = ((sigma * rho ** 2 * E +
                                                     const.mu_0 * sigma ** 2 * rho * _E_cross_H(E, H) +
                                                     const.mu_0 ** 2 * sigma ** 3 * _E_dot_H(E, H) * H) /
                                                    (rho ** 2 + sigma ** 2 * _H_dot_H(H)))'''
-        self._grid.J[:, self.x, self.y, self.z] = self.sigma * E
+        #self._grid.J[:, self.x, self.y, self.z] = self.sigma * E
