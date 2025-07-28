@@ -6,9 +6,6 @@ release.ps1
 /fdtd_fun/__pycache__
 testGrid.dat
 /media
-/media
 main/slabMiddle.dat
 fdtd_fun/visualisation/__pycache__/matplotlib_helpers.cpython-312.pyc
-*.pyc
-*.pyc
 *.pyc

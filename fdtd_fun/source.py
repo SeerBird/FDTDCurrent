@@ -15,7 +15,7 @@ from .grid_object import GridObject
 class Source(GridObject):
 
     def __init__(self, name: str,
-                 function: Callable[[np.ndarray, float], ndarray]):
+                 function: Callable[[np.ndarray, float], np.ndarray]):
         """
 
         :param name: yeah.

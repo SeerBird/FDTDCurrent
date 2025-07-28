@@ -3,10 +3,14 @@ from typing import Callable
 
 import numpy as np
 import pickle
+
+import scipy.sparse.linalg
 from numpy import ndarray
-import scipy.sparse.linalg as sparse
+from scipy.sparse import csr_array
+from scipy.sparse.linalg import factorized
 
 from . import constants as const
+from .constants import c
 from .grid_object import GridObject
 from .boundary import Boundary
 from .detector import Detector
@@ -16,10 +20,22 @@ from .typing_ import Index
 from enum import Enum
 
 
+class Field(Enum):
+    E = 0
+    B = 1
+    J = 2
+
+
+class Comp(Enum):
+    x = 0
+    y = 1
+    z = 2
+
+
 class State:
-    def __init__(self, E: ndarray | None, H: ndarray | None, J: ndarray | None, rho: ndarray | None):
+    def __init__(self, E: ndarray | None, B: ndarray | None, J: ndarray | None, rho: ndarray | None):
         self.E: ndarray | None = E
-        self.H: ndarray | None = H
+        self.B: ndarray | None = B
         self.J: ndarray | None = J
         self.rho: ndarray | None = rho
 
@@ -101,13 +117,15 @@ class Grid:
         else:
             self.courant = float(courant)
         self.dt = self.ds * self.courant / const.c
+        self.S: ndarray = np.zeros((self.Nx, self.Ny, self.Nz, 3, 3)).ravel()  # pos(3), E/B/J, component
         self.E: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
-        self.H: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
+        self.B: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.lastH: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.J: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.rho: ndarray = np.zeros((self.Nx, self.Ny, self.Nz))
         self.emf: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
         self.materialMask = np.zeros((self.Nx, self.Ny, self.Nz), int)
+        self.solver: Callable[[np.ndarray], np.ndarray]
 
     def __setitem__(self, key, obj):
         """
@@ -164,7 +182,7 @@ class Grid:
             pickle.dump(self, self.file, protocol=-1)
         if isinstance(time, float):
             time = int(time / self.dt)
-        self._prep_matrix()
+        self._prep_solver()
         while self.t < time:
             self._step()
             if trigger is not None:
@@ -199,7 +217,7 @@ class Grid:
             if not isinstance(state, State):
                 raise ValueError("The value read from the file was not a State object")
             self.E = state.E
-            self.H = state.H
+            self.B = state.B
             self.J = state.J
             self.rho = state.rho
             for _, detector in self.detectors.items():
@@ -213,22 +231,116 @@ class Grid:
         _dict = self.__dict__.copy()
         _dict.pop("file")
         _dict.pop("E")
-        _dict.pop("H")
+        _dict.pop("B")
         _dict.pop("J")
         _dict.pop("rho")
         return _dict
 
     # endregion
 
-    def _prep_matrix(self):
-        pass
+    # region step stuff
+    def _prep_solver(self):
+        A = csr_array((self.S.shape[0], self.S.shape[0]))
+        inner_indices = (((np.indices((self.Nx - 2, self.Ny - 2, self.Nz - 2)))
+                          .reshape((3, (self.Nx - 2) * (self.Ny - 2) * (self.Nz - 2))))
+                         + np.asarray([1, 1, 1], int)[:, None])
+
+        def add_eq(toIndices: ndarray, toField: Field, toComp: Comp, fromField: Field, fromComp: Comp,
+                   shift: tuple[int, int, int],
+                   value: float):
+            fromIndices = toIndices + np.asarray(shift, int)[:, None]
+            A[(self.ravelIndices(toIndices, toField, toComp),
+               self.ravelIndices(fromIndices, fromField, fromComp))] = value
+
+        # region to E field
+        # region E term
+        add_eq(inner_indices, Field.E, Comp.x, Field.E, Comp.x, (0, 0, 0), 1)
+        add_eq(inner_indices, Field.E, Comp.y, Field.E, Comp.y, (0, 0, 0), 1)
+        add_eq(inner_indices, Field.E, Comp.z, Field.E, Comp.z, (0, 0, 0), 1)
+        # endregion
+        # region curl B term
+        curlBValue = - c / 2 * self.courant
+        # region dBz/dy - dBy/dz
+        add_eq(inner_indices, Field.E, Comp.x, Field.B, Comp.z, (0, 1, 0), curlBValue)
+        add_eq(inner_indices, Field.E, Comp.x, Field.B, Comp.z, (0, -1, 0), -curlBValue)
+        add_eq(inner_indices, Field.E, Comp.x, Field.B, Comp.y, (0, 0, 1), -curlBValue)
+        add_eq(inner_indices, Field.E, Comp.x, Field.B, Comp.y, (0, 0, -1), curlBValue)
+        # endregion
+        # region dBx/dz - dBz/dx
+        add_eq(inner_indices, Field.E, Comp.y, Field.B, Comp.x, (0, 0, 1), curlBValue)
+        add_eq(inner_indices, Field.E, Comp.y, Field.B, Comp.x, (0, 0, -1), -curlBValue)
+        add_eq(inner_indices, Field.E, Comp.y, Field.B, Comp.z, (1, 0, 0), -curlBValue)
+        add_eq(inner_indices, Field.E, Comp.y, Field.B, Comp.z, (-1, 0, 0), curlBValue)
+        # endregion
+        # region dBy/dx - dBx/dy
+        add_eq(inner_indices, Field.E, Comp.z, Field.B, Comp.y, (1, 0, 0), curlBValue)
+        add_eq(inner_indices, Field.E, Comp.z, Field.B, Comp.y, (-1, 0, 0), -curlBValue)
+        add_eq(inner_indices, Field.E, Comp.z, Field.B, Comp.x, (0, 1, 0), -curlBValue)
+        add_eq(inner_indices, Field.E, Comp.z, Field.B, Comp.x, (0, -1, 0), curlBValue)
+        # endregion
+        # endregion
+        # region J term
+        Jvalue = c**2*self.dt*const.mu_0
+        add_eq(inner_indices, Field.E, Comp.x, Field.J, Comp.x, (0, 0, 0), Jvalue)
+        add_eq(inner_indices, Field.E, Comp.y, Field.J, Comp.y, (0, 0, 0), Jvalue)
+        add_eq(inner_indices, Field.E, Comp.z, Field.J, Comp.z, (0, 0, 0), Jvalue)
+        # endregion
+        # endregion
+        # region to B field
+        # region B term
+        add_eq(inner_indices, Field.B, Comp.x, Field.B, Comp.x, (0, 0, 0), 1)
+        add_eq(inner_indices, Field.B, Comp.y, Field.B, Comp.y, (0, 0, 0), 1)
+        add_eq(inner_indices, Field.B, Comp.z, Field.B, Comp.z, (0, 0, 0), 1)
+        # endregion
+        # region curl E term
+        curlEValue = self.courant / 2 / c
+        # region dEz/dy - dEy/dz
+        add_eq(inner_indices, Field.B, Comp.x, Field.E, Comp.z, (0, 1, 0), curlEValue)
+        add_eq(inner_indices, Field.B, Comp.x, Field.E, Comp.z, (0, -1, 0), -curlEValue)
+        add_eq(inner_indices, Field.B, Comp.x, Field.E, Comp.y, (0, 0, 1), -curlEValue)
+        add_eq(inner_indices, Field.B, Comp.x, Field.E, Comp.y, (0, 0, -1), curlEValue)
+        # endregion
+        # region dEx/dz - dEz/dx
+        add_eq(inner_indices, Field.B, Comp.y, Field.E, Comp.x, (0, 0, 1), curlEValue)
+        add_eq(inner_indices, Field.B, Comp.y, Field.E, Comp.x, (0, 0, -1), -curlEValue)
+        add_eq(inner_indices, Field.B, Comp.y, Field.E, Comp.z, (1, 0, 0), -curlEValue)
+        add_eq(inner_indices, Field.B, Comp.y, Field.E, Comp.z, (-1, 0, 0), curlEValue)
+        # endregion
+        # region dEy/dx - dEx/dy
+        add_eq(inner_indices, Field.B, Comp.z, Field.E, Comp.y, (1, 0, 0), curlEValue)
+        add_eq(inner_indices, Field.B, Comp.z, Field.E, Comp.y, (-1, 0, 0), -curlEValue)
+        add_eq(inner_indices, Field.B, Comp.z, Field.E, Comp.x, (0, 1, 0), -curlEValue)
+        add_eq(inner_indices, Field.B, Comp.z, Field.E, Comp.x, (0, -1, 0), curlEValue)
+        # endregion
+        # endregion
+        # endregion
+        # region to J field
+        for _, material in self.conductors.items():
+            Evalue = -material.s * material.rho_f * self.dt
+            Jvalue = 1 + material.s * material.rho_f * self.dt / material.sigma
+            matIndices = np.asarray(material.x,material.y,material.z)
+            add_eq(matIndices, Field.J, Comp.x, Field.J, Comp.x, (0, 0, 0), Jvalue)
+            add_eq(matIndices, Field.J, Comp.y, Field.J, Comp.y, (0, 0, 0), Jvalue)
+            add_eq(matIndices, Field.J, Comp.z, Field.J, Comp.z, (0, 0, 0), Jvalue)
+            add_eq(matIndices, Field.J, Comp.x, Field.E, Comp.x, (0, 0, 0), Evalue)
+            add_eq(matIndices, Field.J, Comp.y, Field.E, Comp.y, (0, 0, 0), Evalue)
+            add_eq(matIndices, Field.J, Comp.z, Field.E, Comp.z, (0, 0, 0), Evalue)
+
+        # endregion
+
+
+        solver = factorized(A)
+
+    def ravelIndices(self, posIndices: ndarray, field: Field, component: Comp):
+        return np.ravel_multi_index((*posIndices, field.value, component.value),
+                                    (self.Nx, self.Ny, self.Nz, 3, 3))
 
     def _step(self):
         print(np.sum(self.rho))
         for _, src in self.sources.items():
             src.apply()
         if self.file is not None:
-            pickle.dump(State(self.E, self.H, self.J, self.rho), self.file, protocol=-1)
+            pickle.dump(State(self.E, self.B, self.J, self.rho), self.file, protocol=-1)
         self._update_H()
         for _, material in self.conductors.items():
             material._get_J()
@@ -238,23 +350,25 @@ class Grid:
         for _, det in self.detectors.items():
             det.read()
 
+    # endregion
+
     def _update_E(self):
         for _, boundary in self.boundaries.items():
             boundary.update_phi_E()  # etc etc
 
-        curl = _curl_H(self.H)
+        curl = _curl_H(self.B)
         self.E += (curl / self.ds - self.J) / const.eps_0 * self.dt
 
         for _, boundary in self.boundaries.items():
             boundary.update_E()  # etc etc
 
     def _update_H(self):
-        self.lastH = self.H
+        self.lastH = self.B
         for _, boundary in self.boundaries.items():
             boundary.update_phi_H()  # etc etc
 
         curl = _curl_E(self.E)
-        self.H += -curl / self.ds / const.mu_0 * self.dt
+        self.B += -curl / self.ds / const.mu_0 * self.dt
 
         for _, boundary in self.boundaries.items():
             boundary.update_H()  # etc etc
@@ -346,7 +460,8 @@ class Grid:
         return x, y, z
 
     def positions(self, x: Index, y: Index, z: Index):
-        return self._positions[:, x, y, z]
+        return self._positions[:, x, y,
+               z]  # TODO: get rid of this and only calculate what is needed for sources etc. once
 
     def time(self):
         return self.t * self.dt

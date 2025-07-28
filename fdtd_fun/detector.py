@@ -31,7 +31,7 @@ class Detector(GridObject):
         if self.toRead.get(Field.J):
             self.J = self._grid.J[:, self.x, self.y, self.z]
         if self.toRead.get(Field.H):
-            self.H = self._grid.H[:, self.x, self.y, self.z]
+            self.H = self._grid.B[:, self.x, self.y, self.z]
         if self.toRead.get(Field.rho):
             self.rho = self._grid.rho[self.x, self.y, self.z]
         # TODO: decide if we want to spend time copying from views
