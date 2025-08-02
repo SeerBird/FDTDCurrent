@@ -5,5 +5,5 @@ from fdtd_fun.visualisation.matplotlib_helpers import animate
 
 grid = Grid.load_from_file("main/slabMiddle.dat")
 grid[:, :, 20] = fdtd.Detector("Section", {Field.E: True,
-                                                   Field.rho: True, Field.J: True, Field.H:True})
+                                           Field.rho: True, Field.J: True, Field.B:True})
 animate(grid)

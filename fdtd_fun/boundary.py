@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fdtd_fun.grid import Grid
-    from fdtd_fun.typing_ import Index
+    from fdtd_fun.typing_ import Key
 
 from .grid_object import GridObject
 
@@ -15,7 +15,7 @@ class Boundary(GridObject):
     def __init__(self, name: str):
         super().__init__(name)
 
-    def _validate_position(self, x: Index, y: Index, z: Index):
+    def _validate_position(self, x: Key, y: Key, z: Key):
         super()._validate_position(x, y, z)
 
     @abstractmethod

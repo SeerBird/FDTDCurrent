@@ -4,19 +4,19 @@ from abc import abstractmethod
 
 if TYPE_CHECKING:
     from .grid import Grid
-    from .typing_ import Index
+    from .typing_ import Key
 
 
 class GridObject:
     def __init__(self, name: str):
         self.name = name # name, unique per grid
         self._grid: Grid # the grid this grid object is registered with
-        self.x: Index # x,y,z are the index positions that make up the grid subset
+        self.x: Key # x,y,z are the index positions that make up the grid subset
         # which this grid object is registered with
-        self.y: Index
-        self.z: Index
+        self.y: Key
+        self.z: Key
 
-    def _register_grid(self, grid: Grid, x: Index, y: Index, z: Index):
+    def _register_grid(self, grid: Grid, x: Key, y: Key, z: Key):
         self._grid = grid
         self._validate_position(x, y, z)
         self.x = x
@@ -29,5 +29,5 @@ class GridObject:
         return _dict
 
     @abstractmethod
-    def _validate_position(self, x: Index, y: Index, z: Index):
+    def _validate_position(self, x: Key, y: Key, z: Key):
         pass

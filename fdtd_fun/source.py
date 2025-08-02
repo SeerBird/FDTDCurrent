@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Callable
 if TYPE_CHECKING:
     from fdtd_fun import Grid
     from .grid import State
-    from fdtd_fun.typing_ import Index
+    from fdtd_fun.typing_ import Key
 
 import numpy as np
 from .grid_object import GridObject
@@ -30,11 +30,11 @@ class Source(GridObject):
         self._grid.emf[:,self.x,self.y,self.z] = self.function(self.positions, self._grid.time())
 
 
-    def _register_grid(self, grid: Grid, x: Index, y: Index, z: Index):
+    def _register_grid(self, grid: Grid, x: Key, y: Key, z: Key):
         super()._register_grid(grid, x, y, z)
         self.positions = self._grid.positions(self.x, self.y, self.z)
 
-    def _validate_position(self, x: Index, y: Index, z: Index):
+    def _validate_position(self, x: Key, y: Key, z: Key):
         pass
 
     def __getstate__(self):

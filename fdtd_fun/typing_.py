@@ -1,6 +1,6 @@
 from numpy import ndarray
 Vector3 = tuple[int, int, int] | tuple[float, float, float]
-Index = slice | ndarray[tuple[int, ...], int]|int
+Key = slice | ndarray[tuple[int, ...], int] | int
 
 class SliceAddInt: # just in case
     def __init__(self, adding:int):

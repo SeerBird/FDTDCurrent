@@ -7,13 +7,12 @@ from . import constants as const
 if TYPE_CHECKING:
     from fdtd_fun import Grid
     from numpy import ndarray
-    from fdtd_fun.typing_ import Index
+    from fdtd_fun.typing_ import Key
 
 from .grid_object import GridObject
 
 
 def _E_cross_H(E: ndarray, H: ndarray):
-    # TODO: figure out how to cross and dot an E-type field and a B-type field
     cross = np.empty_like(E)  # make sure all values are set when using empty_like
     cross[0] = E[1] * H[2] - E[2] * H[1]
     cross[1] = E[2] * H[0] - E[0] * H[2]
@@ -22,7 +21,7 @@ def _E_cross_H(E: ndarray, H: ndarray):
 
 
 def _E_dot_H(E: ndarray, H: ndarray):
-    return E[0] * H[0] + E[1] * H[1] + E[2] * H[2]  # TODO: fix this!
+    return E[0] * H[0] + E[1] * H[1] + E[2] * H[2]
 
 
 def _H_dot_H(H: ndarray):
@@ -49,7 +48,7 @@ class Conductor(GridObject):
         self.rho_f = rho_f
         self.s = s
 
-    def _validate_position(self, x: Index, y: Index, z: Index):
+    def _validate_position(self, x: Key, y: Key, z: Key):
         pass
 
     def _get_J(self) -> None:
