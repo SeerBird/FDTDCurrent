@@ -7,7 +7,7 @@ import numpy as np
 from matplotlib import pyplot as plt, animation
 from matplotlib.axes import Axes
 
-from fdtd_fun.constants import Field
+from fdtd_fun.grid import Field
 
 if TYPE_CHECKING:
     from fdtd_fun import Grid, Detector, Conductor, Source
@@ -21,7 +21,7 @@ def animate(grid: Grid, preferredRatio: float = 1.0):
     total: int = 0
     names: list[str] = []
     for name, det in grid.detectors.items():
-        pos: np.ndarray = grid.positions(det.x, det.y, det.z)  # shape = (3,...)
+        pos: np.ndarray = grid[det.x, det.y, det.z]*grid.ds # shape = (3,...)
         shapeList = list(pos.shape[1:])
         indexes = []
         for length in shapeList:

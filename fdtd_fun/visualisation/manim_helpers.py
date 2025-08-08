@@ -4,10 +4,11 @@ from typing import TYPE_CHECKING, Any, Iterable, Callable, Sequence
 
 from manim.mobject.vector_field import DEFAULT_SCALAR_FIELD_COLORS
 
-from fdtd_fun.constants import Field
+
 
 if TYPE_CHECKING:
     from fdtd_fun import Grid, Detector, Conductor, Source
+    from fdtd_fun.grid import Field
 
 from manim import *
 
@@ -22,13 +23,13 @@ class GridScene(ThreeDScene):
         self.set_camera_orientation(frame_center=(10*ds,10*ds,10*ds), zoom=0.5)
         grid = self._grid
         grid.load_next_frame()
-        for _, cond in grid.conductors.items():
+        for _, cond in grid.materials.items():
             pass  # set up stationary bounding box or smth
         for _, src in grid.sources.items():
             pass  # maybe a bounding box as well?
         detectors = {}
         for name, det in grid.detectors.items():
-            pos = grid.positions(det.x, det.y, det.z) # shape = (3,...)
+            pos = grid[det.x, det.y, det.z]*grid.ds # shape = (3,...)
             pos = np.moveaxis(pos, 0, -1) # shape = (...,3)
             itershape = pos.shape[:-1]
             fields = {}

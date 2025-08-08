@@ -1,11 +1,10 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from fdtd_fun.grid import Field
-
 if TYPE_CHECKING:
     from fdtd_fun.typing_ import Key
     from numpy import ndarray
+    from fdtd_fun.grid import Field
 
 from fdtd_fun.grid_object import GridObject
 

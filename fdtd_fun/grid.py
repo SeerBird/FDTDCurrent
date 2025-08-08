@@ -95,13 +95,14 @@ class Grid:
         self.name: str = name
         self.boundaries: dict[str, Boundary] = {}
         self.detectors: dict[str, Detector] = {}
-        self.conductors: dict[str, Conductor] = {}
+        self.materials: dict[str, Conductor] = {}
         self.sources: dict[str, Source] = {}
         self.ds: float = ds  # space step
         self.dt: float  # time step
         self.courant: float  # the courant number, c*dt/ds
         self.t: int = 0  # current time index
         self.Nx, self.Ny, self.Nz = self._handle_tuple(shape)  # index dimensions of the grid
+        self.shape = (self.Nx, self.Ny, self.Nz)
         if self.Nx < 1 or self.Ny < 1 or self.Nz < 1:
             raise ValueError("grid dimensions must be positive")
         # region determine the courant number
@@ -117,29 +118,25 @@ class Grid:
         # endregion
         self.dt = self.ds * self.courant / const.c
 
-        self.inner_indices: ndarray = (np.indices((self.Nx, self.Ny, self.Nz)))
-        self.inner_positions: ndarray = self.ds * np.asarray(np.meshgrid(np.arange(self.Nx),
-                                                                         np.arange(self.Ny),
-                                                                         np.arange(self.Nz), indexing="ij"))
-        self.border_indices: ndarray = (np.indices((self.Nx + 2, self.Ny + 2, self.Nz + 2))
-                                        - np.asarray((1, 1, 1), int)[:, None]).reshape((3, -1))
-        self.borderIndexSorter = np.argsort(self.border_indices, axis=1)
+        self.inner_indices: ndarray = np.indices(self.shape)
+        self.boundary_indices: ndarray = (np.indices((self.Nx + 2, self.Ny + 2, self.Nz + 2)).reshape((3, -1))
+                                          - np.asarray((1, 1, 1), int)[:, None])
+        self.boundary_indices = self.boundary_indices[:,
+            ((self.boundary_indices[0] == -1) | (self.boundary_indices[0] == self.Nx + 1)) |
+            ((self.boundary_indices[1] == -1) | (self.boundary_indices[1] == self.Ny + 1)) |
+            ((self.boundary_indices[2] == -1) | (self.boundary_indices[2] == self.Nz + 1))]
         self.material_indices: ndarray = np.zeros(
             (3, 0))
-        self.materialIndexSorter = np.argsort(self.material_indices, axis=1)
-        self.emf: ndarray = np.zeros((3, self.Nx, self.Ny, self.Nz))
-        self.materialMask = np.zeros((self.Nx, self.Ny, self.Nz), int)  # TODO: maybe make this boolean?
+        self.emf: ndarray = np.zeros((3, *self.shape))
 
-        self.PML: csr_array = None  # converts S to boundary vector, rect
+        self.R: csr_array | None = None  # converts S to boundary vector, rect
         # self.B: dia_array = None  # converts S to b, square
         self.solver: Callable[[np.ndarray], np.ndarray]
         # region stored state
-        self.S: ndarray = np.zeros(
-            self.inner_indices.shape[1] * self.inner_indices.shape[2] * self.inner_indices.shape[3]
-            * 3 * 3)  # [Nx*Ny*Nz*3*3] (pos(3), E/B/J, x/y/z)
+        self.S: ndarray | None = None  # [Nx*Ny*Nz*2*3 + NJ*3]
         self.b: ndarray = np.zeros(
-            self.border_indices.shape[1] * 2 * 3)  # [nBorder*3*3] (borderIndex, E/B, x/y/z) NO J!
-        self.rho: ndarray = np.zeros((self.Nx, self.Ny, self.Nz))
+            self.boundary_indices.shape[1] * 2 * 3)  # [nBorder*3*3] (borderIndex, E/B, x/y/z) NO J!
+        self.rho: ndarray = np.zeros(self.shape)
         # endregion
 
     def __setitem__(self, key, obj):
@@ -185,10 +182,24 @@ class Grid:
         )
         self._add_object(obj)
 
+    def __getitem__(self, key):
+        if not isinstance(key, tuple):
+            x, y, z = key, slice(None), slice(None)
+        elif len(key) == 1:
+            x, y, z = key[0], slice(None), slice(None)
+        elif len(key) == 2:
+            x, y, z = key[0], key[1], slice(None)
+        elif len(key) == 3:
+            x, y, z = key
+        else:
+            raise KeyError("maximum number of indices for the grid is 3")
+        return self.inner_indices[x, y, z]
+
     def run(self, charge_dist: Callable[[ndarray], ndarray],
             time: float | int, save_path: str = None,
             trigger: Callable = None):
-        starting_rho = charge_dist(self.inner_positions)
+        self.S = np.zeros(self.Nx*self.Ny*self.Nz*2*3+self.material_indices.shape[1]*3)
+        starting_rho = charge_dist(self.inner_indices * self.ds)
         if starting_rho.shape != self.rho.shape:
             raise ValueError("charge_dist function must return blah blah blah")
         self.rho = starting_rho
@@ -246,15 +257,15 @@ class Grid:
     def __getstate__(self):
         _dict = self.__dict__.copy()
         _dict.pop("file")
-        _dict.pop("E")
-        _dict.pop("B")
-        _dict.pop("J")
         _dict.pop("rho")
         return _dict
 
     # endregion
 
     # region step stuff
+    def _prep_state(self):
+
+        pass
 
     def _prep_solver(self):
         A = csr_array((self.S.shape[0], self.S.shape[0]))  # S -> [dt * F]_from_free_state
@@ -267,7 +278,7 @@ class Grid:
 
         def add_eq(toIndices: ndarray, toField: Field, toComp: Comp, fromField: Field, fromComp: Comp,
                    shift: tuple[int, int, int],
-                   value: float)->None:
+                   value: float) -> None:
             """
 
             :param toIndices: the position indices in F to which this transformation maps, a (3,n)-shaped array
@@ -284,10 +295,10 @@ class Grid:
             in_free_state = self.in_free_state(fromIndices[0], fromIndices[1], fromIndices[2], fromField)
             if fromField != Field.J:  # completely get rid of fromJ values outside of the free state as they are all zero
                 rejection = fromIndices[:, ~in_free_state]  # supposed to be subset of border_indices
-                B[(self.ravelSIndices(toIndices, toField, toComp),
+                B[(self.ravelSIndices(toIndices[:,~in_free_state], toField, toComp),
                    self.ravelBIndices(rejection, fromField, fromComp))] = value
             fromIndices = fromIndices[:, in_free_state]
-            A[(self.ravelSIndices(toIndices, toField, toComp),
+            A[(self.ravelSIndices(toIndices[:, in_free_state], toField, toComp),
                self.ravelSIndices(fromIndices, fromField, fromComp))] = value
 
         # region to E field
@@ -343,7 +354,7 @@ class Grid:
         # endregion
         # endregion
         # region to J field
-        for _, material in self.conductors.items():
+        for _, material in self.materials.items():
             Evalue = material.s * material.rho_f * self.dt
             Jvalue = - material.s * material.rho_f * self.dt / material.sigma
             matIndices = np.asarray(material.x, material.y, material.z)
@@ -356,41 +367,32 @@ class Grid:
 
         # endregion
 
-        solver = factorized(I - A - B @ R)  # TODO: check signs
-
-    def ravelSIndices(self, posIndices: ndarray, field: Field, component: Comp):
-        if field != Field.J:
-            return np.ravel_multi_index((*posIndices, field.value, component.value),
-                                        (self.Nx, self.Ny, self.Nz, 3, 3))
-        else:  # posIndices are expected to be in the free state J (inside materials)
-            offset = self.S.shape[0]
-            material_indices = self.materialIndexSorter[np.searchsorted(self.material_indices, posIndices,
-                                                                        sorter=self.materialIndexSorter)]
-            return np.ravel_multi_index((material_indices, field.value, component.value),
-                                        (self.material_indices.shape[1], 3)) + offset
-
-    def ravelBIndices(self, posIndices: ndarray, field: Field, component: Comp):
-        if field == Field.J:
-            raise ValueError("J is not stored in the boundary vector as it is always zero in the boundary!")
-        border_indices = self.borderIndexSorter[np.searchsorted(self.border_indices, posIndices,
-                                                                sorter=self.borderIndexSorter)]
-        return np.ravel_multi_index((border_indices, field.value, component.value),
-                                    (self.border_indices.shape[1], 2, 3))
+        solver = factorized(I - A - B @ R)
 
     def _step(self):
-        print(np.sum(self.rho))
+        # region get G
+        G_J = np.zeros((*self.shape,3))
+        # region get K
+        K = np.zeros((*self.shape,3))
         for _, src in self.sources.items():
-            src.apply()
-        if self.file is not None:
-            pickle.dump(State(self.E, self.B, self.J, self.rho), self.file, protocol=-1)
-        self._update_H()
-        for _, material in self.conductors.items():
-            material._get_J()
-        self._update_rho()
-        self._update_E()
+            K[src.x,src.y,src.z]+=src.function(src.positions, self.time())
+        # endregion
+        # region add K and J x B
+        for _, mat in self.materials.items():
+            G_J[mat.x,mat.y,mat.z]+=mat.s*mat.rho_f*K[mat.x,mat.y,mat.z]
+            mat_indices = self[mat.x,mat.y,mat.z]
+            Jx_indices = self.ravelSIndices(mat_indices, Field.J, Comp.x)
+            # this + 1 = Jy_indices, this + 2 = Jz_indices
+            Bx_indices = self.ravelSIndices(mat_indices, Field.B, Comp.x)
+            # this + 1 = By_indices, this + 2 = Bz_indices
+            G_J[:, Comp.x.value] += self.S[Jx_indices] * self.S[Bx_indices]
 
+        # endregion
+        # endregion
         for _, det in self.detectors.items():
             det.read()
+        if self.file is not None:
+            pickle.dump(State(self.E, self.B, self.J, self.rho), self.file, protocol=-1)
 
     # endregion
 
@@ -404,41 +406,42 @@ class Grid:
     def in_free_state(self, x: ndarray | int, y: ndarray | int, z: ndarray | int, field: Field):
         result = (x >= 0) & (x < self.Nx) & (y >= 0) & (y < self.Ny) & (z >= 0) & (z < self.Nz)
         if field == Field.J:
-            result = result & (self.materialMask[x, y, z] == 1)
+            if self.material_indices.size==0:
+                return result & False
+            mask = np.full(self.shape, False)
+            mask[*self.material_indices] = True
+            result = result & mask
         return result
 
-    def _update_E(self):
-        for _, boundary in self.boundaries.items():
-            boundary.update_phi_E()  # etc etc
+    # region ravel stuff
+    def _unique_inner_integer(self, posIndices: ndarray):
+        return posIndices[0] + posIndices[1] * self.Nx + posIndices[2] * self.Nx * self.Ny
 
-        curl = _curl_H(self.B)
-        self.E += (curl / self.ds - self.J) / const.eps_0 * self.dt
+    def _unique_boundary_integer(self, posIndices: ndarray):
+        return posIndices[0] + posIndices[1] * (self.Nx + 2) + posIndices[2] * (self.Nx + 2) * (self.Ny + 2)
 
-        for _, boundary in self.boundaries.items():
-            boundary.update_E()  # etc etc
+    def ravelSIndices(self, posIndices: ndarray, field: Field, component: Comp):
+        if field != Field.J:
+            return np.ravel_multi_index((*posIndices, field.value, component.value),
+                                        (self.Nx, self.Ny, self.Nz, 2, 3))
+        else:  # posIndices are expected to be in the free state J (inside materials)
+            offset = self.S.shape[0]
+            unique_J_ints = self._unique_inner_integer(self.material_indices)
+            unique_arg_ints = self._unique_inner_integer(posIndices)
+            # noinspection PyTypeChecker
+            return (np.searchsorted(unique_J_ints, unique_arg_ints, sorter=np.argsort(unique_J_ints)) * 3 +
+                    component.value + offset)
 
-    def _update_H(self):
-        self.lastH = self.B
-        for _, boundary in self.boundaries.items():
-            boundary.update_phi_H()  # etc etc
+    def ravelBIndices(self, posIndices: ndarray, field: Field, component: Comp):
+        if field == Field.J:
+            raise ValueError("J is not stored in the boundary vector as it is always zero in the boundary!")
+        unique_b_ints = self._unique_boundary_integer(self.boundary_indices)
+        unique_arg_ints = self._unique_boundary_integer(posIndices)
+        # noinspection PyTypeChecker
+        return (np.searchsorted(unique_b_ints, unique_arg_ints, sorter=np.argsort(unique_b_ints)) * 6
+                + field.value * 3 + component.value)
 
-        curl = _curl_E(self.E)
-        self.B += -curl / self.ds / const.mu_0 * self.dt
-
-        for _, boundary in self.boundaries.items():
-            boundary.update_H()  # etc etc
-
-    def _update_rho(self):
-        drho = -_div_E(self.J) * self.dt / self.ds
-        mask_traversal = np.asarray((self.materialMask[2:, 1:-1, 1:-1],
-                                     self.materialMask[0:-2, 1:-1, 1:-1],
-                                     self.materialMask[1:-1, 2:, 1:-1],
-                                     self.materialMask[1:-1, 0:-2, 1:-1],
-                                     self.materialMask[1:-1, 1:-1, 2:],
-                                     self.materialMask[1:-1, 1:-1, 0:-2])
-                                    )
-        mask_traversal[:, self.materialMask[1:-1, 1:-1, 1:-1] == 1] = 0
-        self.rho += drho
+    # endregion
 
     # region distance-Index helpers
     def _add_object(self, obj: GridObject):
@@ -448,11 +451,10 @@ class Grid:
         elif isinstance(obj, Detector):
             dictionary = self.detectors
         elif isinstance(obj, Conductor):
-            dictionary = self.conductors
+            dictionary = self.materials
             self.material_indices = np.concatenate((self.material_indices,
                                                     self.inner_indices[:, obj.x, obj.y, obj.z].reshape(3, -1)), axis=1)
             self.materialIndexSorter = np.argsort(self.material_indices, axis=1)
-            self.materialMask[obj.x, obj.y, obj.z] = 1
         elif isinstance(obj, Source):
             dictionary = self.sources
         else:
@@ -493,7 +495,7 @@ class Grid:
 
     def handle_distance(self, distance: float | int | ndarray):
         # TODO: make sure this is convenient for indexing(no holes, no overlaps with the most obvious
-        # approaches etc.)
+        #  approaches etc.)
         if isinstance(distance, int):
             return distance
         elif isinstance(distance, float):
@@ -516,10 +518,6 @@ class Grid:
         y = self.handle_distance(y)
         z = self.handle_distance(z)
         return x, y, z
-
-    def positions(self, x: Key, y: Key, z: Key):
-        return self.inner_positions[:, x, y,
-               z]  # TODO: get rid of this and only calculate what is needed for sources etc. once
 
     def time(self):
         return self.t * self.dt
