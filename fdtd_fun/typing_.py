@@ -1,4 +1,5 @@
 from numpy import ndarray
+from enum import Enum
 Vector3 = tuple[int, int, int] | tuple[float, float, float]
 Key = slice | ndarray[tuple[int, ...], int] | int
 
@@ -12,4 +13,15 @@ class SliceAddInt: # just in case
             start = None if not isinstance(other.start, int) else other.start + self.adding
             stop = None if not isinstance(other.stop, int) else other.stop + self.adding
             return slice(start, stop, other.step)
+
+class Field(Enum):
+    E = 0
+    B = 1
+    J = 2
+    rho = -1  # only use this in detectors
+
+class Comp(Enum):
+    x = 0
+    y = 1
+    z = 2
 

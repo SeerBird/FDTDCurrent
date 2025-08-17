@@ -23,7 +23,7 @@ class GridScene(ThreeDScene):
         self.set_camera_orientation(frame_center=(10*ds,10*ds,10*ds), zoom=0.5)
         grid = self._grid
         grid.load_next_frame()
-        for _, cond in grid.materials.items():
+        for _, cond in grid.conductors.items():
             pass  # set up stationary bounding box or smth
         for _, src in grid.sources.items():
             pass  # maybe a bounding box as well?

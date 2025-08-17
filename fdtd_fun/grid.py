@@ -4,7 +4,6 @@ from typing import Callable
 import numpy as np
 import pickle
 
-import scipy.sparse.linalg
 from numpy import ndarray
 from scipy.sparse import csr_array, dia_array
 from scipy.sparse.linalg import factorized
@@ -16,29 +15,16 @@ from .boundary import Boundary
 from .detector import Detector
 from .conductor import Conductor
 from .source import Source
-from .typing_ import Key
-from enum import Enum
+from .typing_ import Key, Field, Comp
 
-
-class Field(Enum):
-    E = 0
-    B = 1
-    J = 2
-    rho = -1  # only use this in detectors
-
-
-class Comp(Enum):
-    x = 0
-    y = 1
-    z = 2
 
 
 class State:
-    def __init__(self, E: ndarray | None, B: ndarray | None, J: ndarray | None, rho: ndarray | None):
-        self.E: ndarray | None = E
-        self.B: ndarray | None = B
-        self.J: ndarray | None = J
-        self.rho: ndarray | None = rho
+    def __init__(self, E: ndarray, B: ndarray, J: ndarray, rho: ndarray):
+        self.E: ndarray = E
+        self.B: ndarray= B
+        self.J: ndarray = J
+        self.rho: ndarray = rho
 
 
 def _curl_E(E: ndarray) -> ndarray:
@@ -95,7 +81,7 @@ class Grid:
         self.name: str = name
         self.boundaries: dict[str, Boundary] = {}
         self.detectors: dict[str, Detector] = {}
-        self.materials: dict[str, Conductor] = {}
+        self.conductors: dict[str, Conductor] = {}
         self.sources: dict[str, Source] = {}
         self.ds: float = ds  # space step
         self.dt: float  # time step
@@ -118,26 +104,30 @@ class Grid:
         # endregion
         self.dt = self.ds * self.courant / const.c
 
-        self.inner_indices: ndarray = np.indices(self.shape)
+        self.inner_indices: ndarray = np.indices(self.shape, int)
         self.boundary_indices: ndarray = (np.indices((self.Nx + 2, self.Ny + 2, self.Nz + 2)).reshape((3, -1))
                                           - np.asarray((1, 1, 1), int)[:, None])
         self.boundary_indices = self.boundary_indices[:,
-            ((self.boundary_indices[0] == -1) | (self.boundary_indices[0] == self.Nx + 1)) |
-            ((self.boundary_indices[1] == -1) | (self.boundary_indices[1] == self.Ny + 1)) |
-            ((self.boundary_indices[2] == -1) | (self.boundary_indices[2] == self.Nz + 1))]
-        self.material_indices: ndarray = np.zeros(
-            (3, 0))
-        self.emf: ndarray = np.zeros((3, *self.shape))
+        ((self.boundary_indices[0] == -1) | (self.boundary_indices[0] == self.Nx + 1)) |
+        ((self.boundary_indices[1] == -1) | (self.boundary_indices[1] == self.Ny + 1)) |
+        ((self.boundary_indices[2] == -1) | (self.boundary_indices[2] == self.Nz + 1))]
+        self.cond_indices: ndarray = np.zeros(
+            (3, 0), int)
 
-        self.R: csr_array | None = None  # converts S to boundary vector, rect
-        # self.B: dia_array = None  # converts S to b, square
+        # self.R: csr_array  # converts S to boundary vector, rect
+        self.B: dia_array  # converts S to b_linear, square
         self.solver: Callable[[np.ndarray], np.ndarray]
         # region stored state
-        self.S: ndarray | None = None  # [Nx*Ny*Nz*2*3 + NJ*3]
+        self.State: ndarray = np.zeros((*self.shape, 3, 3))
+        self.dof: int = self.Nx * self.Ny * self.Nz * 2 * 3  # this will increase as conductors are added
+        self.EBdof: int = self.dof
+        self.Sprev: ndarray  # [Nx*Ny*Nz*2*3 + NJ*3]
         self.b: ndarray = np.zeros(
-            self.boundary_indices.shape[1] * 2 * 3)  # [nBorder*3*3] (borderIndex, E/B, x/y/z) NO J!
+            self.boundary_indices.shape[1] * 2 * 3)  # [nBorder*2*3] (borderIndex, E/B, x/y/z) NO J!
         self.rho: ndarray = np.zeros(self.shape)
         # endregion
+
+    # region indexing the grid
 
     def __setitem__(self, key, obj):
         """
@@ -182,6 +172,27 @@ class Grid:
         )
         self._add_object(obj)
 
+    def _add_object(self, obj: GridObject):
+        """Validate and add a GridObject"""
+        if isinstance(obj, Boundary):
+            dictionary = self.boundaries
+        elif isinstance(obj, Detector):
+            dictionary = self.detectors
+        elif isinstance(obj, Conductor):
+            dictionary = self.conductors
+            cond_index = self[obj.x, obj.y, obj.z].reshape(3, -1)
+            self.cond_indices = np.concatenate((self.cond_indices,
+                                                cond_index), axis=1)
+            self.dof += cond_index.size
+        elif isinstance(obj, Source):
+            dictionary = self.sources
+        else:
+            raise TypeError("Grid only accepts GridObjects")
+        if dictionary.keys().__contains__(obj.name):
+            raise KeyError("Object with this name is already on the grid")
+        # TODO: maybe we need to make sure the objects don't intersect
+        dictionary[obj.name] = obj
+
     def __getitem__(self, key):
         if not isinstance(key, tuple):
             x, y, z = key, slice(None), slice(None)
@@ -193,36 +204,50 @@ class Grid:
             x, y, z = key
         else:
             raise KeyError("maximum number of indices for the grid is 3")
-        return self.inner_indices[x, y, z]
+        return self.inner_indices[:, x, y, z]
+
+    def _get_value(self,field:Field,x:Key,y:Key,z:Key):
+        return np.moveaxis(self.State[x,y,z,field.value],-1,0)
+
+
+    # endregion
 
     def run(self, charge_dist: Callable[[ndarray], ndarray],
             time: float | int, save_path: str = None,
             trigger: Callable = None):
-        self.S = np.zeros(self.Nx*self.Ny*self.Nz*2*3+self.material_indices.shape[1]*3)
-        starting_rho = charge_dist(self.inner_indices * self.ds)
-        if starting_rho.shape != self.rho.shape:
-            raise ValueError("charge_dist function must return blah blah blah")
-        self.rho = starting_rho
+        # self.S = np.zeros(self.Nx*self.Ny*self.Nz*2*3+self.conductors_indices.shape[1]*3)
+        # starting_rho = charge_dist(self.inner_indices * self.ds)
+        # if starting_rho.shape != self.rho.shape:
+        #    raise ValueError("charge_dist function must return blah blah blah")
+        # self.rho = starting_rho
         # equalize - how? antidivergence?
         if save_path is not None:
             self.file = open(save_path + f"{self.name}.dat", "wb")
+            # noinspection PyTypeChecker
             pickle.dump(self, self.file, protocol=-1)
         if isinstance(time, float):
             time = int(time / self.dt)
+        self.Sprev = np.zeros(self.dof)
         self._prep_solver()
         while self.t < time:
-            self._step()
+            for _, det in self.detectors.items():
+                det.read()
             if trigger is not None:
                 trigger()
-            self.t += 1
+            self._step()
+            if self.file is not None:
+                pickle.dump(self.State, self.file, protocol=-1)
+                # TODO: am I wasting too much memory saving the whole state rather than just the free state?
+                #  I think I can reduce the file size up to three times, but is it worth the inconvenience?
         if self.file is not None:
             self.file.close()
+
 
     # region file stuff
     @classmethod
     def load_from_file(cls, save_path: str) -> Grid:
         """
-        Loads a Grid object from a file, restores all GridObjects, and sets the state to the first recorded state
+        Loads a Grid object from a file, restores all GridObjects, and sets the state to the initial state
         :param save_path: specify format here
         :return: new Grid object loaded from the file
         """
@@ -241,12 +266,9 @@ class Grid:
                 "please use Grid.load_from_file()")
         try:
             state = pickle.load(self.file)
-            if not isinstance(state, State):
-                raise ValueError("The value read from the file was not a State object")
-            self.E = state.E
-            self.B = state.B
-            self.J = state.J
-            self.rho = state.rho
+            if not isinstance(state, ndarray):
+                raise ValueError("The value read from the file was not a numpy array object - why?")
+            self.State = state
             for _, detector in self.detectors.items():
                 detector.read()
             return False
@@ -257,22 +279,22 @@ class Grid:
     def __getstate__(self):
         _dict = self.__dict__.copy()
         _dict.pop("file")
-        _dict.pop("rho")
+        _dict.pop("b")
         return _dict
 
     # endregion
 
     # region step stuff
-    def _prep_state(self):
-
-        pass
 
     def _prep_solver(self):
-        A = csr_array((self.S.shape[0], self.S.shape[0]))  # S -> [dt * F]_from_free_state
-        I = dia_array((self.S.shape[0], self.S.shape[0]))  # identity.
+        raveler = np.zeros((*self.shape, 3, 3), int) - 1  # should not ever index the -1s
+        raveler[:, :, :, :-1, :] = np.arange(self.EBdof).reshape((*self.shape, 2, 3))
+        raveler[*self.cond_indices, Field.J.value, :] = np.arange(self.EBdof, self.dof).reshape((-1, 3))
+        A = csr_array((self.dof, self.dof))  # S -> [dt * F]_from_free_state
+        I = dia_array((self.dof, self.dof))  # identity.
         I.setdiag(1, 0)
         R = self._get_reflecting_boundary()  # S -> boundary
-        B = csr_array((self.S.shape[0], self.b.shape[0]))  # boundary -> [dt * F]_from_boundary_conditions
+        H = csr_array((self.dof, self.b.shape[0]))  # boundary -> [dt * F]_from_boundary_conditions
 
         inner = self.inner_indices.reshape((3, -1))
 
@@ -292,15 +314,24 @@ class Grid:
             """
             # assume toIndices are all in the free state
             fromIndices = toIndices + np.asarray(shift, int)[:, None]
-            in_free_state = self.in_free_state(fromIndices[0], fromIndices[1], fromIndices[2], fromField)
+            in_free_state = self._in_free_state(fromIndices[0], fromIndices[1], fromIndices[2], fromField)
             if fromField != Field.J:  # completely get rid of fromJ values outside of the free state as they are all zero
                 rejection = fromIndices[:, ~in_free_state]  # supposed to be subset of border_indices
-                B[(self.ravelSIndices(toIndices[:,~in_free_state], toField, toComp),
+                H[(raveler[*toIndices[:, ~in_free_state], toField.value, toComp.value],
                    self.ravelBIndices(rejection, fromField, fromComp))] = value
-            fromIndices = fromIndices[:, in_free_state]
-            A[(self.ravelSIndices(toIndices[:, in_free_state], toField, toComp),
-               self.ravelSIndices(fromIndices, fromField, fromComp))] = value
-
+            A[raveler[*toIndices[:, in_free_state], toField.value, toComp.value],
+            raveler[*fromIndices[:, in_free_state], fromField.value, fromComp.value]] = value
+        # region test eye
+        '''
+        fields = [Field.E, Field.B]
+        components = [Comp.x, Comp.y, Comp.z]
+        for comp in components:
+            for field in fields:
+                add_eq(inner, field, comp, field, comp, (0, 0, 0), 1)
+            add_eq(self.cond_indices, Field.J, comp, Field.J, comp, (0, 0, 0), 1)
+        diff = A-I
+        '''
+        # endregion
         # region to E field
         # region curl B term
         curlBValue = c / 2 * self.courant
@@ -354,10 +385,10 @@ class Grid:
         # endregion
         # endregion
         # region to J field
-        for _, material in self.materials.items():
-            Evalue = material.s * material.rho_f * self.dt
-            Jvalue = - material.s * material.rho_f * self.dt / material.sigma
-            matIndices = np.asarray(material.x, material.y, material.z)
+        for _, cond in self.conductors.items():
+            Evalue = cond.s * cond.rho_f * self.dt
+            Jvalue = - cond.s * cond.rho_f * self.dt / cond.sigma
+            matIndices = self[cond.x, cond.y, cond.z].reshape((3, -1))
             add_eq(matIndices, Field.J, Comp.x, Field.J, Comp.x, (0, 0, 0), Jvalue)
             add_eq(matIndices, Field.J, Comp.y, Field.J, Comp.y, (0, 0, 0), Jvalue)
             add_eq(matIndices, Field.J, Comp.z, Field.J, Comp.z, (0, 0, 0), Jvalue)
@@ -366,71 +397,72 @@ class Grid:
             add_eq(matIndices, Field.J, Comp.z, Field.E, Comp.z, (0, 0, 0), Evalue)
 
         # endregion
-
-        solver = factorized(I - A - B @ R)
+        self.solver = factorized(I - A - H @ R)
+        self.B = I + A + H @ R
 
     def _step(self):
-        # region get G
-        G_J = np.zeros((*self.shape,3))
+        # region get b
+        b = np.zeros(self.dof)
+        # region get and add G
+        G_J = np.zeros((*self.shape, 3))
         # region get K
-        K = np.zeros((*self.shape,3))
+        K = np.zeros((*self.shape, 3))
         for _, src in self.sources.items():
-            K[src.x,src.y,src.z]+=src.function(src.positions, self.time())
+            K[src.x, src.y, src.z] += np.moveaxis(src.function(src.positions, self.time()), 0, -1)
         # endregion
-        # region add K and J x B
-        for _, mat in self.materials.items():
-            G_J[mat.x,mat.y,mat.z]+=mat.s*mat.rho_f*K[mat.x,mat.y,mat.z]
-            mat_indices = self[mat.x,mat.y,mat.z]
-            Jx_indices = self.ravelSIndices(mat_indices, Field.J, Comp.x)
-            # this + 1 = Jy_indices, this + 2 = Jz_indices
-            Bx_indices = self.ravelSIndices(mat_indices, Field.B, Comp.x)
-            # this + 1 = By_indices, this + 2 = Bz_indices
-            G_J[:, Comp.x.value] += self.S[Jx_indices] * self.S[Bx_indices]
+        # region add K and J x B and J.nabla J
+        for _, mat in self.conductors.items():
+            G_J[mat.x, mat.y, mat.z] += mat.s * mat.rho_f * K[mat.x, mat.y, mat.z] # add K
+            J_mat = self.State[mat.x, mat.y, mat.z, Field.J.value, :]
+            B_mat = self.State[mat.x, mat.y, mat.z, Field.B.value, :]
+            none_key = [slice(None)] * (len(J_mat.shape) - 1)
+            G_J[mat.x, mat.y, mat.z, 0] += mat.s * (
+                        J_mat[*none_key, 1] * B_mat[*none_key, 2] - J_mat[*none_key, 2] * B_mat[*none_key, 1])
+            G_J[mat.x, mat.y, mat.z, 1] += mat.s * (
+                        J_mat[*none_key, 2] * B_mat[*none_key, 0] - J_mat[*none_key, 0] * B_mat[*none_key, 2])
+            G_J[mat.x, mat.y, mat.z, 2] += mat.s * (
+                        J_mat[*none_key, 0] * B_mat[*none_key, 1] - J_mat[*none_key, 1] * B_mat[*none_key, 0])
+            # endregion
+        # endregion
+        if self.cond_indices.size != 0:
+            b[self.EBdof:] += 2 * G_J[*self.cond_indices].reshape((-1)) * self.dt
+        # endregion
+        b += self.B @ self.Sprev  # get and add the S_n-1 term
+        # endregion
+        Snext = self.solver(b)
+        # region set state to the next timestep
+        self.Sprev = np.concatenate(
+            (self.State[:, :, :, :-1, :].flatten(), self.State[*self.cond_indices, Field.J.value].flatten()))
+        self.State[:, :, :, :-1, :] = Snext[:self.EBdof].reshape((*self.shape, 2, 3))
+        self.State[*self.cond_indices, Field.J.value, :] = Snext[self.EBdof:].reshape((-1, 3))
+        self.t += 1
+        # endregion
 
-        # endregion
-        # endregion
-        for _, det in self.detectors.items():
-            det.read()
-        if self.file is not None:
-            pickle.dump(State(self.E, self.B, self.J, self.rho), self.file, protocol=-1)
+    def _in_free_state(self, x: ndarray, y: ndarray, z: ndarray, field: Field):
+        result = (x >= 0) & (x < self.Nx) & (y >= 0) & (y < self.Ny) & (z >= 0) & (z < self.Nz)
+        if field == Field.J:
+            if self.cond_indices.size == 0:
+                return result & False
+            mask = np.full(self.shape, False)
+            mask[*self.cond_indices] = True
+            result = result & mask[x, y, z]
+        return result
 
     # endregion
 
     # region boundaries
 
     def _get_reflecting_boundary(self) -> csr_array:
-        return csr_array((self.b.shape[0], self.S.shape[0]))  # yummy empty matrix
+        return csr_array((self.b.shape[0], self.dof))  # yummy empty matrix
 
     # endregion
 
-    def in_free_state(self, x: ndarray | int, y: ndarray | int, z: ndarray | int, field: Field):
-        result = (x >= 0) & (x < self.Nx) & (y >= 0) & (y < self.Ny) & (z >= 0) & (z < self.Nz)
-        if field == Field.J:
-            if self.material_indices.size==0:
-                return result & False
-            mask = np.full(self.shape, False)
-            mask[*self.material_indices] = True
-            result = result & mask
-        return result
+
 
     # region ravel stuff
-    def _unique_inner_integer(self, posIndices: ndarray):
-        return posIndices[0] + posIndices[1] * self.Nx + posIndices[2] * self.Nx * self.Ny
 
     def _unique_boundary_integer(self, posIndices: ndarray):
         return posIndices[0] + posIndices[1] * (self.Nx + 2) + posIndices[2] * (self.Nx + 2) * (self.Ny + 2)
-
-    def ravelSIndices(self, posIndices: ndarray, field: Field, component: Comp):
-        if field != Field.J:
-            return np.ravel_multi_index((*posIndices, field.value, component.value),
-                                        (self.Nx, self.Ny, self.Nz, 2, 3))
-        else:  # posIndices are expected to be in the free state J (inside materials)
-            offset = self.S.shape[0]
-            unique_J_ints = self._unique_inner_integer(self.material_indices)
-            unique_arg_ints = self._unique_inner_integer(posIndices)
-            # noinspection PyTypeChecker
-            return (np.searchsorted(unique_J_ints, unique_arg_ints, sorter=np.argsort(unique_J_ints)) * 3 +
-                    component.value + offset)
 
     def ravelBIndices(self, posIndices: ndarray, field: Field, component: Comp):
         if field == Field.J:
@@ -444,25 +476,6 @@ class Grid:
     # endregion
 
     # region distance-Index helpers
-    def _add_object(self, obj: GridObject):
-        """Validate and add a GridObject"""
-        if isinstance(obj, Boundary):
-            dictionary = self.boundaries
-        elif isinstance(obj, Detector):
-            dictionary = self.detectors
-        elif isinstance(obj, Conductor):
-            dictionary = self.materials
-            self.material_indices = np.concatenate((self.material_indices,
-                                                    self.inner_indices[:, obj.x, obj.y, obj.z].reshape(3, -1)), axis=1)
-            self.materialIndexSorter = np.argsort(self.material_indices, axis=1)
-        elif isinstance(obj, Source):
-            dictionary = self.sources
-        else:
-            raise TypeError("Grid only accepts GridObjects")
-        if dictionary.keys().__contains__(obj.name):
-            raise KeyError("Object with this name is already on the grid")
-        # TODO: maybe we need to make sure the objects don't intersect
-        dictionary[obj.name] = obj
 
     def _handle_single_key(self, key) -> Key:
         if isinstance(key, ndarray):

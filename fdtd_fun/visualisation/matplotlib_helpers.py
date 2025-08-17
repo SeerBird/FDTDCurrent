@@ -34,10 +34,6 @@ def animate(grid: Grid, preferredRatio: float = 1.0):
                 break
         fields = {}
         detectors[det.name] = (pos, fields, shapeList)
-        if det.rho is not None:
-            fields[Field.rho] = True
-            names.append(f"{name}:rho")
-            total += 1
         if det.E is not None:
             fields[Field.E] = True
             names.append(f"{name}:E")
@@ -115,6 +111,6 @@ def animate(grid: Grid, preferredRatio: float = 1.0):
         if grid.load_next_frame():
             break
 
-    ani = animation.ArtistAnimation(fig, ims, interval=20, blit=True, repeat_delay=1000)
+    ani = animation.ArtistAnimation(fig, ims, interval=75, blit=True, repeat_delay=1000)
     fig.tight_layout()
     plt.show()

@@ -24,10 +24,7 @@ class Source(GridObject):
         """
         super().__init__(name)
         self.function = function
-        self.positions: np.ndarray | None = None
-
-    def apply(self):
-        self._grid.emf[:,self.x,self.y,self.z] = self.function(self.positions, self._grid.time())
+        self.positions: np.ndarray
 
 
     def _register_grid(self, grid: Grid, x: Key, y: Key, z: Key):
