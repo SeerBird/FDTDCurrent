@@ -18,15 +18,6 @@ from .source import Source
 from .typing_ import Key, Field, Comp
 
 
-
-class State:
-    def __init__(self, E: ndarray, B: ndarray, J: ndarray, rho: ndarray):
-        self.E: ndarray = E
-        self.B: ndarray= B
-        self.J: ndarray = J
-        self.rho: ndarray = rho
-
-
 def _curl_E(E: ndarray) -> ndarray:
     curl = np.zeros_like(E)
     # dz/dy - dy/dz
@@ -103,6 +94,7 @@ class Grid:
             self.courant = float(courant)
         # endregion
         self.dt = self.ds * self.courant / const.c
+        print(f"Timestep: {self.dt:.2E} s")
 
         self.inner_indices: ndarray = np.indices(self.shape, int)
         self.boundary_indices: ndarray = (np.indices((self.Nx + 2, self.Ny + 2, self.Nz + 2)).reshape((3, -1))
@@ -206,9 +198,8 @@ class Grid:
             raise KeyError("maximum number of indices for the grid is 3")
         return self.inner_indices[:, x, y, z]
 
-    def _get_value(self,field:Field,x:Key,y:Key,z:Key):
-        return np.moveaxis(self.State[x,y,z,field.value],-1,0)
-
+    def _get_value(self, field: Field, x: Key, y: Key, z: Key):
+        return np.moveaxis(self.State[x, y, z, field.value], -1, 0)
 
     # endregion
 
@@ -241,7 +232,6 @@ class Grid:
                 #  I think I can reduce the file size up to three times, but is it worth the inconvenience?
         if self.file is not None:
             self.file.close()
-
 
     # region file stuff
     @classmethod
@@ -321,6 +311,7 @@ class Grid:
                    self.ravelBIndices(rejection, fromField, fromComp))] = value
             A[raveler[*toIndices[:, in_free_state], toField.value, toComp.value],
             raveler[*fromIndices[:, in_free_state], fromField.value, fromComp.value]] = value
+
         # region test eye
         '''
         fields = [Field.E, Field.B]
@@ -410,19 +401,39 @@ class Grid:
         for _, src in self.sources.items():
             K[src.x, src.y, src.z] += np.moveaxis(src.function(src.positions, self.time()), 0, -1)
         # endregion
+        # region J.nabla J
+        J = self.State[:, :, :, Field.J.value, :]
+        # region nabla J
+        nablaJ = np.zeros((*self.shape, 3, 3))  # x,y,z, J component, derivative component
+        # this is nablaJ * ds
+        nablaJ[1:-1, :, :, Comp.x.value] = (J[2:, :, :] - J[:-2, :, :]) / 2
+        nablaJ[0, :, :, Comp.x.value] = J[0, :, :]  # boundary J is 0
+        nablaJ[-1, :, :, Comp.x.value] = -J[-1, :, :]
+
+        nablaJ[:, 1:-1, :, Comp.y.value] = (J[:, 2:, :] - J[:, :-2, :]) / 2
+        nablaJ[:, 0, :, Comp.y.value] = J[:, 0, :]  # boundary J is 0
+        nablaJ[:, -1, :, Comp.y.value] = -J[:, -1, :]
+
+        nablaJ[:, :, 1:-1, Comp.z.value] = (J[:, :, 2:] - J[:, :, :-2]) / 2
+        nablaJ[:, :, 0, Comp.z.value] = J[:, :, 0]  # boundary J is 0
+        nablaJ[:, :, -1, Comp.z.value] = -J[:, :, -1]
+        # endregion
+        JnabJ = np.einsum("ijkl,ijkyl->ijky",J, nablaJ)
+        # endregion
         # region add K and J x B and J.nabla J
         for _, mat in self.conductors.items():
-            G_J[mat.x, mat.y, mat.z] += mat.s * mat.rho_f * K[mat.x, mat.y, mat.z] # add K
+            G_J[mat.x, mat.y, mat.z] += mat.s * mat.rho_f * K[mat.x, mat.y, mat.z]  # add K
             J_mat = self.State[mat.x, mat.y, mat.z, Field.J.value, :]
             B_mat = self.State[mat.x, mat.y, mat.z, Field.B.value, :]
             none_key = [slice(None)] * (len(J_mat.shape) - 1)
             G_J[mat.x, mat.y, mat.z, 0] += mat.s * (
-                        J_mat[*none_key, 1] * B_mat[*none_key, 2] - J_mat[*none_key, 2] * B_mat[*none_key, 1])
+                    J_mat[*none_key, 1] * B_mat[*none_key, 2] - J_mat[*none_key, 2] * B_mat[*none_key, 1])
             G_J[mat.x, mat.y, mat.z, 1] += mat.s * (
-                        J_mat[*none_key, 2] * B_mat[*none_key, 0] - J_mat[*none_key, 0] * B_mat[*none_key, 2])
+                    J_mat[*none_key, 2] * B_mat[*none_key, 0] - J_mat[*none_key, 0] * B_mat[*none_key, 2])
             G_J[mat.x, mat.y, mat.z, 2] += mat.s * (
-                        J_mat[*none_key, 0] * B_mat[*none_key, 1] - J_mat[*none_key, 1] * B_mat[*none_key, 0])
-            # endregion
+                    J_mat[*none_key, 0] * B_mat[*none_key, 1] - J_mat[*none_key, 1] * B_mat[*none_key, 0])
+            G_J[mat.x, mat.y, mat.z] +=  -1/self.ds/mat.rho_f * JnabJ[mat.x, mat.y, mat.z] #TODO: is this negligible?
+
         # endregion
         if self.cond_indices.size != 0:
             b[self.EBdof:] += 2 * G_J[*self.cond_indices].reshape((-1)) * self.dt
@@ -456,8 +467,6 @@ class Grid:
         return csr_array((self.b.shape[0], self.dof))  # yummy empty matrix
 
     # endregion
-
-
 
     # region ravel stuff
 

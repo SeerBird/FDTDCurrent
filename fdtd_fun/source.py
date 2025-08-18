@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from fdtd_fun import Grid
-    from .grid import State
     from fdtd_fun.typing_ import Key
 
 import numpy as np

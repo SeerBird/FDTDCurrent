@@ -3,7 +3,6 @@ from numpy import ndarray, dtype, bool
 
 from fdtd_fun import Conductor
 from fdtd_fun import Source
-from fdtd_fun.grid import State
 
 
 def empty_starting_rho(r) -> np.ndarray:
@@ -15,8 +14,11 @@ save_path = "main/"  # TODO: figure out if this is okay. since it's not relative
 
 def my_emf(positions: ndarray, time: float):
     res = np.zeros_like(positions, float)
-    res[2] = 1
+    res[2] = perrycioc(0,1,30e-10,5e9,time)
     return res
+
+def perrycioc(a,b,c,r,x):
+    return (a*np.exp(c*r)+b*np.exp(r*x))/(np.exp(c*r)+np.exp(r*x))
 
 
 size = 1.0

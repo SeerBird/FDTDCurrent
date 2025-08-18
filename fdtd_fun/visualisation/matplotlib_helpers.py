@@ -111,6 +111,6 @@ def animate(grid: Grid, preferredRatio: float = 1.0):
         if grid.load_next_frame():
             break
 
-    ani = animation.ArtistAnimation(fig, ims, interval=75, blit=True, repeat_delay=1000)
+    ani = animation.ArtistAnimation(fig, ims, interval=66, blit=True, repeat_delay=1000)
     fig.tight_layout()
     plt.show()
