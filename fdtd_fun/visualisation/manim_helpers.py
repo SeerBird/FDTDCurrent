@@ -55,7 +55,7 @@ class GridScene(ThreeDScene):
             # repeat for H, J, rho(gotta make the scalar field class)
         self.wait(1 / 15)
         while True:
-            if self._grid.load_next_frame():
+            if not self._grid.load_next_frame():
                 break
             for name, det in grid.detectors.items():
                 itershape = detectors[name][0]

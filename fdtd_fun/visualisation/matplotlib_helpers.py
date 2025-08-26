@@ -5,28 +5,33 @@ from typing import TYPE_CHECKING, Any, Iterable, Callable, Sequence
 
 import numpy as np
 from matplotlib import pyplot as plt, animation
-from matplotlib.axes import Axes
 
 from fdtd_fun.grid import Field
+from fdtd_fun.typing_ import Comp
 
 if TYPE_CHECKING:
-    from fdtd_fun import Grid, Detector, Conductor, Source
+    from fdtd_fun import Grid
+
+fieldsToCheck = [Field.E, Field.B, Field.J]
+fieldNames = {Field.E: "E", Field.B: "B", Field.J: "J"}
+components = [Comp.x, Comp.y, Comp.z]
+compNames = {Comp.x: "x", Comp.y: "y", Comp.z: "z"}
+fieldColors = {Field.E: "b", Field.B: "r", Field.J: "y"}
 
 
-def animate(grid: Grid, preferredRatio: float = 1.0):
+def animate(grid: Grid, time: float = 4.0, preferredRatio: float = 0.7):
+    fig = plt.figure()
     ims = []
     grid.load_next_frame()
-    ds = grid.ds
     detectors = {}
     total: int = 0
+    frames = 0
     names: list[str] = []
+    # region set up data template
     for name, det in grid.detectors.items():
-        pos: np.ndarray = grid[det.x, det.y, det.z]*grid.ds # shape = (3,...)
+        det.read()
+        pos: np.ndarray = grid[det.x, det.y, det.z] * grid.ds  # shape = (3,...)
         shapeList = list(pos.shape[1:])
-        indexes = []
-        for length in shapeList:
-            indexes.append(np.arange(length))
-        indexes.append("ij")
         while True:
             try:
                 shapeList.remove(1)
@@ -37,15 +42,25 @@ def animate(grid: Grid, preferredRatio: float = 1.0):
         if det.E is not None:
             fields[Field.E] = True
             names.append(f"{name}:E")
-            total += 1
+            names.append(f"{name}:Ex")
+            names.append(f"{name}:Ey")
+            names.append(f"{name}:Ez")
+            total += 4
+        if det.B is not None:
+            fields[Field.B] = True
+            names.append(f"{name}:B")
+            names.append(f"{name}:Bx")
+            names.append(f"{name}:By")
+            names.append(f"{name}:Bz")
+            total += 4
         if det.J is not None:
             fields[Field.J] = True
             names.append(f"{name}:J")
-            total += 1
-        if det.B is not None:
-            fields[Field.B] = True
-            names.append(f"{name}:H")
-            total += 1
+            names.append(f"{name}:Jx")
+            names.append(f"{name}:Jy")
+            names.append(f"{name}:Jz")
+            total += 4
+    # endregion
     # region get layout
     xn: int = 1
     yn: int = 1
@@ -54,63 +69,52 @@ def animate(grid: Grid, preferredRatio: float = 1.0):
             xn += 1
         else:
             yn += 1
-    fig, ax = plt.subplots(xn, yn, squeeze=False)
-    ax1d: list[Axes] = list(ax.reshape((xn * yn)))
+    for j in range(total):
+        fig.add_subplot(xn, yn, j + 1)
+    ax = fig.get_axes()
     # endregion
     # region set titles and axes
     for i in range(len(names)):
-        ax1d[i].set_title(names[i])
+        ax[i].set_title(names[i])
     # endregion
     while True:
+        frames += 1
         frameArtists = []
-        counter: int = 0
+        # region draw
+        subplotCounter = 0
         for name, myTuple in detectors.items():
-            pos = myTuple[0]
             fields = myTuple[1]
             shapeList = myTuple[2]
             det = grid.detectors[name]
-            if len(shapeList) == 1:
-                indexes = np.arange(shapeList[0])
-                if fields.get(Field.rho):
-                    frameArtists.extend(ax1d[counter].plot(indexes, det.rho.reshape(shapeList)))
-                    counter += 1
-                if fields.get(Field.E):
-                    E = np.sqrt(det.E[0] ** 2 + det.E[1] ** 2 + det.E[2] ** 2)
-                    frameArtists.extend(ax1d[counter].plot(indexes, E.reshape(shapeList)))
-                    counter += 1
-            elif len(shapeList) == 2:
-                if fields.get(Field.rho):
-                    frameArtists.append(ax1d[counter].imshow(det.rho.reshape(shapeList),
-                                                             cmap="plasma", interpolation="nearest"))
-                    counter += 1
-                if fields.get(Field.E):
-                    field = det.E
-                    fieldImage = np.sqrt(field[0] ** 2 + field[1] ** 2 + field[2] ** 2).reshape(shapeList)
-                    axesImage = ax1d[counter].imshow(fieldImage, cmap="plasma", interpolation="nearest")
-                    frameArtists.append(axesImage)
-                    #frameArtists.append(fig.colorbar(axesImage, cax=ax1d[counter]))
-                    #TODO: figure out why colorbar is so slow/switch to FuncAnimation
-                    counter += 1
-                if fields.get(Field.J):
-                    field = det.J
-                    fieldImage = np.sqrt(field[0] ** 2 + field[1] ** 2 + field[2] ** 2).reshape(shapeList)
-                    axesImage = ax1d[counter].imshow(fieldImage, cmap="plasma", interpolation="nearest")
-                    frameArtists.append(axesImage)
-                    #frameArtists.append(fig.colorbar(axesImage, cax=ax1d[counter]))
-                    #TODO: figure out why colorbar is so slow/switch to FuncAnimation
-                    counter += 1
-                if fields.get(Field.B):
-                    field = det.B
-                    fieldImage = np.sqrt(field[0] ** 2 + field[1] ** 2 + field[2] ** 2).reshape(shapeList)
-                    axesImage = ax1d[counter].imshow(fieldImage, cmap="plasma", interpolation="nearest")
-                    frameArtists.append(axesImage)
-                    #frameArtists.append(fig.colorbar(axesImage, cax=ax1d[counter]))
-                    #TODO: figure out why colorbar is so slow/switch to FuncAnimation
-                    counter += 1
+            indexes = np.arange(shapeList[0])
+            for f in fieldsToCheck:
+                if fields.get(f):
+                    field = det.__getattribute__(fieldNames[f])
+                    if len(shapeList) == 1:
+                        frameArtists += ax[subplotCounter].plot(indexes,
+                                                                ((field[0] ** 2 + field[1] ** 2 + field[2] ** 2) ** 0.5)
+                                                                .reshape(shapeList),fieldColors[f])
+                        subplotCounter += 1
+                        for comp in components:
+                            frameArtists += ax[subplotCounter].plot(indexes, field[comp.value].reshape(shapeList),fieldColors[f])
+                            subplotCounter += 1
+                    elif len(shapeList) == 2:
+                        frameArtists.append(
+                            ax[subplotCounter].imshow(((field[0] ** 2 + field[1] ** 2 + field[2] ** 2) ** 0.5)
+                                                      .reshape(shapeList),
+                                                      cmap="plasma", interpolation="none", origin='lower'))
+                        subplotCounter += 1
+                        for comp in components:
+                            frameArtists.append(ax[subplotCounter].imshow(field[comp.value].reshape(shapeList),
+                                                                          cmap="plasma", interpolation="none",
+                                                                          origin='lower'))
+                            subplotCounter += 1
+        # endregion
+        fig.tight_layout()
         ims.append(frameArtists)
-        if grid.load_next_frame():
+        if not grid.load_next_frame():
             break
 
-    ani = animation.ArtistAnimation(fig, ims, interval=66, blit=True, repeat_delay=1000)
+    ani = animation.ArtistAnimation(fig, ims, interval=1, blit=True, repeat_delay=1000)
     fig.tight_layout()
-    plt.show()
+    ani.save(f"ani{grid.name}.mp4", dpi=300, fps=frames / time)

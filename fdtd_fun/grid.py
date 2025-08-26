@@ -69,6 +69,7 @@ class Grid:
         :param courant: the courant number for the simulation
         """
         self.file = None
+        self.save_path = None
         self.name: str = name
         self.boundaries: dict[str, Boundary] = {}
         self.detectors: dict[str, Detector] = {}
@@ -204,7 +205,7 @@ class Grid:
     # endregion
 
     def run(self, charge_dist: Callable[[ndarray], ndarray],
-            time: float | int, save_path: str = None,
+            time: float | int, save: bool = False,
             trigger: Callable = None):
         # self.S = np.zeros(self.Nx*self.Ny*self.Nz*2*3+self.conductors_indices.shape[1]*3)
         # starting_rho = charge_dist(self.inner_indices * self.ds)
@@ -212,8 +213,8 @@ class Grid:
         #    raise ValueError("charge_dist function must return blah blah blah")
         # self.rho = starting_rho
         # equalize - how? antidivergence?
-        if save_path is not None:
-            self.file = open(save_path + f"{self.name}.dat", "wb")
+        if save:
+            self.file = open(f"{self.name}.dat", "wb")
             # noinspection PyTypeChecker
             pickle.dump(self, self.file, protocol=-1)
         if isinstance(time, float):
@@ -241,12 +242,15 @@ class Grid:
         :param save_path: specify format here
         :return: new Grid object loaded from the file
         """
+
         file = open(save_path, "rb")
         grid = pickle.load(file)
         if isinstance(grid, Grid):
             grid.file = file
+            grid.save_path = save_path
             # maybe check out persistent ID pickle stuff
             return grid
+
         raise Exception("haha")
 
     def load_next_frame(self) -> bool:
@@ -261,10 +265,25 @@ class Grid:
             self.State = state
             for _, detector in self.detectors.items():
                 detector.read()
-            return False
+            self.t+=1
+            return True
         except EOFError:
             self.file.close()
-            return True
+            return False
+
+    def reload(self):
+        self.file.close()
+        file = open(self.save_path, "rb")
+        grid = pickle.load(file)
+        if isinstance(grid, Grid):
+            self.file = file
+            self.State = grid.State
+            self.t = grid.t
+            for _, detector in self.detectors.items():
+                detector.read()
+            return
+        raise Exception("why is this not a grid")
+
 
     def __getstate__(self):
         _dict = self.__dict__.copy()

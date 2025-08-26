@@ -25,7 +25,7 @@ class Detector(GridObject):
 
     def read(self):
         if self.toRead.get(Field.E):
-            self.E = self._grid._get_value(Field.E, self.x, self.y, self.z)
+            self.E = self._grid._get_value(Field.E, self.x, self.y, self.z) # (3,...)
         if self.toRead.get(Field.J):
             self.J = self._grid._get_value(Field.J, self.x, self.y, self.z)
         if self.toRead.get(Field.B):

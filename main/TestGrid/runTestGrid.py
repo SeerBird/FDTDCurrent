@@ -9,9 +9,6 @@ def empty_starting_rho(r) -> np.ndarray:
     return np.zeros_like(r[0])
 
 
-save_path = "main/"  # TODO: figure out if this is okay. since it's not relative. depending on the way this is run
-
-
 def my_emf(positions: ndarray, time: float):
     res = np.zeros_like(positions, float)
     res[2] = perrycioc(0,1,30e-10,5e9,time)
@@ -37,11 +34,4 @@ grid[xslice, mid + radius:size - mid - radius, mid - radius:mid + radius] \
     = Conductor("testConductor4", 8.5e28 * -1.6e-19, -1.6e-19 / 9e-31, 8e7)
 # endregion
 grid[xslice,mid-radius:mid+radius,size/2-radius:size/2+radius] = Source("testSource", my_emf)
-
-
-def trigger():
-    pass  # do smth before every tick
-
-
-grid.run(empty_starting_rho, 200, save_path,
-         trigger)
+grid.run(empty_starting_rho, 200, True)
