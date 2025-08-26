@@ -11,58 +11,22 @@ from scipy.sparse.linalg import factorized
 from . import constants as const
 from .constants import c
 from .grid_object import GridObject
-from .boundary import Boundary
 from .detector import Detector
 from .conductor import Conductor
 from .source import Source
 from .typing_ import Key, Field, Comp
 
 
-def _curl_E(E: ndarray) -> ndarray:
-    curl = np.zeros_like(E)
-    # dz/dy - dy/dz
-    curl[0, :, :-1, :] += E[2, :, 1:, :] - E[2, :, :-1, :]
-    curl[0, :, :, :-1] -= E[1, :, :, 1:] - E[1, :, :, :-1]
-    # dx/dz-dz/dx
-    curl[1, :, :, :-1] += E[0, :, :, 1:] - E[0, :, :, :-1]
-    curl[1, :-1, :, :] -= E[2, 1:, :, :] - E[2, :-1, :, :]
-    # dy/dx-dx/dy
-    curl[2, :-1, :, :] += E[1, 1:, :, :] - E[1, :-1, :, :]
-    curl[2, :, :-1, :] -= E[0, :, 1:, :] - E[0, :, :-1, :]
-    return curl  # zero on the high edges of the region
-
-
-def _curl_H(H: ndarray) -> ndarray:
-    curl = np.zeros_like(H)
-    # dz/dy - dy/dz
-    curl[0, :, 1:, :] += H[2, :, 1:, :] - H[2, :, :-1, :]
-    curl[0, :, :, 1:] -= H[1, :, :, 1:] - H[1, :, :, :-1]
-    # dx/dz-dz/dx
-    curl[1, :, :, 1:] += H[0, :, :, 1:] - H[0, :, :, :-1]
-    curl[1, 1:, :, :] -= H[2, 1:, :, :] - H[2, :-1, :, :]
-    # dy/dx-dx/dy
-    curl[2, 1:, :, :] += H[1, 1:, :, :] - H[1, :-1, :, :]
-    curl[2, :, 1:, :] -= H[0, :, 1:, :] - H[0, :, :-1, :]
-    return curl  # zero on the low edges of the region
-
-
-def _div_E(E: ndarray) -> ndarray:
-    div = np.zeros((E.shape[1], E.shape[2], E.shape[3]))
-    div[:-1, :, :] += E[0, 1:, :, :] - E[0, :-1, :, :]
-    div[:, :-1, :] += E[1, :, 1:, :] - E[1, :, :-1, :]
-    div[:, :, :-1] += E[2, :, :, 1:] - E[2, :, :, :-1]
-    return div
-
-
 class Grid:
-    """The FDTD grid - the core of this library. The intended use is to create a Grid object,
+    """
+    The FDTD grid - the core of this library. The intended use is to create a Grid object,
      assign GridObject objects to the grid by indexing the Grid object(see __setitem__ below),
-      and then use the run() method below"""
+      and then use the run() method below
+    """
 
     def __init__(self, name: str, shape: tuple[float | int, float | int, float | int], ds: float,
-                 courant: float = None):  # add boundaries
+                 courant: float = None):
         """
-
         :param shape: the dimensions of the grid, a float|int 3-tuple. int values will be used as indexes,
          and float values will be converted to indexes using the ds value given
         :param ds: the spacial step of the grid, in meters
@@ -71,7 +35,6 @@ class Grid:
         self.file = None
         self.save_path = None
         self.name: str = name
-        self.boundaries: dict[str, Boundary] = {}
         self.detectors: dict[str, Detector] = {}
         self.conductors: dict[str, Conductor] = {}
         self.sources: dict[str, Source] = {}
@@ -86,6 +49,8 @@ class Grid:
         # region determine the courant number
         dim = int(self.Nx > 1) + int(self.Ny > 1) + int(self.Nz > 1)
         max_courant = const.stability * float(dim) ** (-0.5)
+        # TODO: I'm pretty sure we don't care about the
+        #  Courant–Friedrichs–Lewy condition now that we're doing Crank–Nicolson,
         if courant is None:
             self.courant = max_courant
         elif courant > max_courant:
@@ -95,8 +60,7 @@ class Grid:
             self.courant = float(courant)
         # endregion
         self.dt = self.ds * self.courant / const.c
-        print(f"Timestep: {self.dt:.2E} s")
-
+        print(f"Timestep: {self.dt:.2E} s")  # TODO: add proper logging
         self.inner_indices: ndarray = np.indices(self.shape, int)
         self.boundary_indices: ndarray = (np.indices((self.Nx + 2, self.Ny + 2, self.Nz + 2)).reshape((3, -1))
                                           - np.asarray((1, 1, 1), int)[:, None])
@@ -106,18 +70,16 @@ class Grid:
         ((self.boundary_indices[2] == -1) | (self.boundary_indices[2] == self.Nz + 1))]
         self.cond_indices: ndarray = np.zeros(
             (3, 0), int)
-
         # self.R: csr_array  # converts S to boundary vector, rect
         self.B: dia_array  # converts S to b_linear, square
-        self.solver: Callable[[np.ndarray], np.ndarray]
+        self.solver: Callable[[np.ndarray], np.ndarray] # solves the matrix equation for the step
         # region stored state
         self.State: ndarray = np.zeros((*self.shape, 3, 3))
-        self.dof: int = self.Nx * self.Ny * self.Nz * 2 * 3  # this will increase as conductors are added
-        self.EBdof: int = self.dof
-        self.Sprev: ndarray  # [Nx*Ny*Nz*2*3 + NJ*3]
-        self.b: ndarray = np.zeros(
-            self.boundary_indices.shape[1] * 2 * 3)  # [nBorder*2*3] (borderIndex, E/B, x/y/z) NO J!
-        self.rho: ndarray = np.zeros(self.shape)
+        self.dof: int = self.Nx * self.Ny * self.Nz * 2 * 3  # degrees of freedom, this will increase as conductors are added
+        self.EBdof: int = self.dof  # electric and magnetic field degrees of freedom
+        self.Sprev: ndarray  # previous state [Nx*Ny*Nz*2*3 + NJ*3]
+        # TODO: consider adding charge density tracking. to this charge redistribution sim.
+
         # endregion
 
     # region indexing the grid
@@ -126,12 +88,13 @@ class Grid:
         """
         Assign a GridObject to a subset of the grid
         :param key: a tuple of slices, numbers, or ndarrays. All ndarrays must be of the same shape,
-        all int values will be treated as indexes and all float values will be treated as distances and converted to
-        indexes. Indexing with ndarrays is very inefficient and should be avoided.
+        all int values will be treated as indexes and all float values will be treated as coordinates in metres
+         and converted to indexes. Indexing with ndarrays is very inefficient and should be avoided.
         :param obj: a GridObject object
         """
         if not (isinstance(obj, GridObject)):
-            raise TypeError("grid only accepts grid objects")
+            raise TypeError("Grid only accepts GridObjects")
+        # region pad the key with None slices or scream that the key is too long
         if not isinstance(key, tuple):
             x, y, z = key, slice(None), slice(None)
         elif len(key) == 1:
@@ -142,6 +105,7 @@ class Grid:
             x, y, z = key
         else:
             raise KeyError("maximum number of indices for the grid is 3")
+        # endregion
         # region make sure ndarrays match in shape
         arrays: list[ndarray] = []
         if isinstance(x, ndarray):
@@ -154,7 +118,7 @@ class Grid:
             shape = arrays[0].shape
             for array in arrays:
                 if array.shape != shape:
-                    raise ValueError("passed ndarrays must match in shape")
+                    raise ValueError("Ndarrays passed in the grid indexing key must match in shape")
         # endregion
         x, y, z = self._handle_single_key(x), self._handle_single_key(y), self._handle_single_key(z)
         obj._register_grid(
@@ -167,9 +131,7 @@ class Grid:
 
     def _add_object(self, obj: GridObject):
         """Validate and add a GridObject"""
-        if isinstance(obj, Boundary):
-            dictionary = self.boundaries
-        elif isinstance(obj, Detector):
+        if isinstance(obj, Detector):
             dictionary = self.detectors
         elif isinstance(obj, Conductor):
             dictionary = self.conductors
@@ -180,13 +142,20 @@ class Grid:
         elif isinstance(obj, Source):
             dictionary = self.sources
         else:
-            raise TypeError("Grid only accepts GridObjects")
+            raise TypeError("Grid only accepts GridObjects")  # how did we get here?
         if dictionary.keys().__contains__(obj.name):
             raise KeyError("Object with this name is already on the grid")
         # TODO: maybe we need to make sure the objects don't intersect
         dictionary[obj.name] = obj
 
     def __getitem__(self, key):
+        """
+        :param key: a tuple of slices, numbers, or ndarrays. All ndarrays must be of the same shape,
+        all int values will be treated as indexes and all float values will be treated as coordinates in metres
+         and converted to indexes. Indexing with ndarrays is very inefficient and should be avoided.
+        :return: indices in the selected portion of the grid, (3,...) - shaped
+        """
+        # region pad the key with None slices or scream that the key is too long
         if not isinstance(key, tuple):
             x, y, z = key, slice(None), slice(None)
         elif len(key) == 1:
@@ -197,6 +166,7 @@ class Grid:
             x, y, z = key
         else:
             raise KeyError("maximum number of indices for the grid is 3")
+        # endregion
         return self.inner_indices[:, x, y, z]
 
     def _get_value(self, field: Field, x: Key, y: Key, z: Key):
@@ -204,15 +174,10 @@ class Grid:
 
     # endregion
 
-    def run(self, charge_dist: Callable[[ndarray], ndarray],
-            time: float | int, save: bool = False,
+    def run(self, time: float | int, charge_dist: Callable[[ndarray], ndarray] = None, save: bool = False,
             trigger: Callable = None):
-        # self.S = np.zeros(self.Nx*self.Ny*self.Nz*2*3+self.conductors_indices.shape[1]*3)
-        # starting_rho = charge_dist(self.inner_indices * self.ds)
-        # if starting_rho.shape != self.rho.shape:
-        #    raise ValueError("charge_dist function must return blah blah blah")
-        # self.rho = starting_rho
-        # equalize - how? antidivergence?
+        # TODO: consider actually using the starting charge distribution
+        #  if we do we gotta find the starting fields, use antidivergence?
         if save:
             self.file = open(f"{self.name}.dat", "wb")
             # noinspection PyTypeChecker
@@ -222,12 +187,13 @@ class Grid:
         self.Sprev = np.zeros(self.dof)
         self._prep_solver()
         while self.t < time:
-            for _, det in self.detectors.items():
-                det.read()
             if trigger is not None:
+                for _, det in self.detectors.items():
+                    det.read()
                 trigger()
             self._step()
             if self.file is not None:
+                # noinspection PyTypeChecker
                 pickle.dump(self.State, self.file, protocol=-1)
                 # TODO: am I wasting too much memory saving the whole state rather than just the free state?
                 #  I think I can reduce the file size up to three times, but is it worth the inconvenience?
@@ -239,10 +205,9 @@ class Grid:
     def load_from_file(cls, save_path: str) -> Grid:
         """
         Loads a Grid object from a file, restores all GridObjects, and sets the state to the initial state
-        :param save_path: specify format here
+        :param save_path: yep.
         :return: new Grid object loaded from the file
         """
-
         file = open(save_path, "rb")
         grid = pickle.load(file)
         if isinstance(grid, Grid):
@@ -265,13 +230,13 @@ class Grid:
             self.State = state
             for _, detector in self.detectors.items():
                 detector.read()
-            self.t+=1
+            self.t += 1
             return True
         except EOFError:
             self.file.close()
             return False
 
-    def reload(self):
+    def _reload(self):  # unused and should probably stay that way
         self.file.close()
         file = open(self.save_path, "rb")
         grid = pickle.load(file)
@@ -284,7 +249,6 @@ class Grid:
             return
         raise Exception("why is this not a grid")
 
-
     def __getstate__(self):
         _dict = self.__dict__.copy()
         _dict.pop("file")
@@ -296,6 +260,8 @@ class Grid:
     # region step stuff
 
     def _prep_solver(self):
+        # TODO: is there a way to easily optimise this? probably doesn't matter though as
+        #  this is negligible in comparison to running the sim
         raveler = np.zeros((*self.shape, 3, 3), int) - 1  # should not ever index the -1s
         raveler[:, :, :, :-1, :] = np.arange(self.EBdof).reshape((*self.shape, 2, 3))
         raveler[*self.cond_indices, Field.J.value, :] = np.arange(self.EBdof, self.dof).reshape((-1, 3))
@@ -303,7 +269,10 @@ class Grid:
         I = dia_array((self.dof, self.dof))  # identity.
         I.setdiag(1, 0)
         R = self._get_reflecting_boundary()  # S -> boundary
-        H = csr_array((self.dof, self.b.shape[0]))  # boundary -> [dt * F]_from_boundary_conditions
+        # TODO: consider ignoring the boundary (effectively making it always fully reflective)
+        # and then adding a PML(which would just be a change to A)
+        H = csr_array(
+            (self.dof, self.boundary_indices.shape[1] * 2 * 3))  # boundary -> [dt * F]_from_boundary_conditions
 
         inner = self.inner_indices.reshape((3, -1))
 
@@ -331,17 +300,6 @@ class Grid:
             A[raveler[*toIndices[:, in_free_state], toField.value, toComp.value],
             raveler[*fromIndices[:, in_free_state], fromField.value, fromComp.value]] = value
 
-        # region test eye
-        '''
-        fields = [Field.E, Field.B]
-        components = [Comp.x, Comp.y, Comp.z]
-        for comp in components:
-            for field in fields:
-                add_eq(inner, field, comp, field, comp, (0, 0, 0), 1)
-            add_eq(self.cond_indices, Field.J, comp, Field.J, comp, (0, 0, 0), 1)
-        diff = A-I
-        '''
-        # endregion
         # region to E field
         # region curl B term
         curlBValue = c / 2 * self.courant
@@ -396,15 +354,19 @@ class Grid:
         # endregion
         # region to J field
         for _, cond in self.conductors.items():
-            Evalue = cond.s * cond.rho_f * self.dt
+            condIndices = self[cond.x, cond.y, cond.z].reshape((3, -1))
+            # region J term
             Jvalue = - cond.s * cond.rho_f * self.dt / cond.sigma
-            matIndices = self[cond.x, cond.y, cond.z].reshape((3, -1))
-            add_eq(matIndices, Field.J, Comp.x, Field.J, Comp.x, (0, 0, 0), Jvalue)
-            add_eq(matIndices, Field.J, Comp.y, Field.J, Comp.y, (0, 0, 0), Jvalue)
-            add_eq(matIndices, Field.J, Comp.z, Field.J, Comp.z, (0, 0, 0), Jvalue)
-            add_eq(matIndices, Field.J, Comp.x, Field.E, Comp.x, (0, 0, 0), Evalue)
-            add_eq(matIndices, Field.J, Comp.y, Field.E, Comp.y, (0, 0, 0), Evalue)
-            add_eq(matIndices, Field.J, Comp.z, Field.E, Comp.z, (0, 0, 0), Evalue)
+            add_eq(condIndices, Field.J, Comp.x, Field.J, Comp.x, (0, 0, 0), Jvalue)
+            add_eq(condIndices, Field.J, Comp.y, Field.J, Comp.y, (0, 0, 0), Jvalue)
+            add_eq(condIndices, Field.J, Comp.z, Field.J, Comp.z, (0, 0, 0), Jvalue)
+            # endregion
+            # region E term
+            Evalue = cond.s * cond.rho_f * self.dt
+            add_eq(condIndices, Field.J, Comp.x, Field.E, Comp.x, (0, 0, 0), Evalue)
+            add_eq(condIndices, Field.J, Comp.y, Field.E, Comp.y, (0, 0, 0), Evalue)
+            add_eq(condIndices, Field.J, Comp.z, Field.E, Comp.z, (0, 0, 0), Evalue)
+            # endregion
 
         # endregion
         self.solver = factorized(I - A - H @ R)
@@ -437,7 +399,7 @@ class Grid:
         nablaJ[:, :, 0, Comp.z.value] = J[:, :, 0]  # boundary J is 0
         nablaJ[:, :, -1, Comp.z.value] = -J[:, :, -1]
         # endregion
-        JnabJ = np.einsum("ijkl,ijkyl->ijky",J, nablaJ)
+        JnabJ = np.einsum("ijkl,ijkyl->ijky", J, nablaJ)
         # endregion
         # region add K and J x B and J.nabla J
         for _, mat in self.conductors.items():
@@ -451,7 +413,8 @@ class Grid:
                     J_mat[*none_key, 2] * B_mat[*none_key, 0] - J_mat[*none_key, 0] * B_mat[*none_key, 2])
             G_J[mat.x, mat.y, mat.z, 2] += mat.s * (
                     J_mat[*none_key, 0] * B_mat[*none_key, 1] - J_mat[*none_key, 1] * B_mat[*none_key, 0])
-            G_J[mat.x, mat.y, mat.z] +=  -1/self.ds/mat.rho_f * JnabJ[mat.x, mat.y, mat.z] #TODO: is this negligible?
+            G_J[mat.x, mat.y, mat.z] += -1 / self.ds / mat.rho_f * JnabJ[
+                mat.x, mat.y, mat.z]  # TODO: is this negligible?
 
         # endregion
         if self.cond_indices.size != 0:
@@ -480,10 +443,10 @@ class Grid:
 
     # endregion
 
-    # region boundaries
+    # region boundaries - will probably get rid of this
 
     def _get_reflecting_boundary(self) -> csr_array:
-        return csr_array((self.b.shape[0], self.dof))  # yummy empty matrix
+        return csr_array((self.boundary_indices.shape[1] * 2 * 3, self.dof))  # yummy empty matrix
 
     # endregion
 

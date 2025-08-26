@@ -1,5 +1,3 @@
-from enum import Enum
-
 from numpy import pi
 
 stability = 0.99

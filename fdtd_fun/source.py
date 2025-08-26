@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 
-
 if TYPE_CHECKING:
     from fdtd_fun import Grid
     from fdtd_fun.typing_ import Key
@@ -10,7 +9,6 @@ import numpy as np
 from .grid_object import GridObject
 
 
-## Object
 class Source(GridObject):
 
     def __init__(self, name: str,
@@ -18,13 +16,12 @@ class Source(GridObject):
         """
 
         :param name: yeah.
-        :param function: function that, given a cartesian position ndarray, returns
+        :param function: function that, given a cartesian position ndarray (3,...), returns
          an emf vector ndarray of the same shape
         """
         super().__init__(name)
         self.function = function
         self.positions: np.ndarray
-
 
     def _register_grid(self, grid: Grid, x: Key, y: Key, z: Key):
         super()._register_grid(grid, x, y, z)

@@ -1,13 +1,11 @@
 from __future__ import annotations
-import matplotlib
 
 from typing import TYPE_CHECKING, Any, Iterable, Callable, Sequence
 
 import numpy as np
 from matplotlib import pyplot as plt, animation
 
-from fdtd_fun.grid import Field
-from fdtd_fun.typing_ import Comp
+from fdtd_fun.typing_ import Field, Comp
 
 if TYPE_CHECKING:
     from fdtd_fun import Grid

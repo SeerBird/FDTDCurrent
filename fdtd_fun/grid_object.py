@@ -31,4 +31,4 @@ class GridObject:
 
     @abstractmethod
     def _validate_position(self, x: Key, y: Key, z: Key):
-        pass
+        pass #TODO: consider actually doing this

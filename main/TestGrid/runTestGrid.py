@@ -1,11 +1,10 @@
-import numpy as np, fdtd_fun as fdtd
-from numpy import ndarray, dtype, bool
+import numpy as np
+from numpy import ndarray
 
-from fdtd_fun import Conductor
-from fdtd_fun import Source
+from fdtd_fun import Grid, Conductor, Source
 
 
-def empty_starting_rho(r) -> np.ndarray:
+def empty_starting_rho(r) -> ndarray:
     return np.zeros_like(r[0])
 
 
@@ -21,7 +20,7 @@ def perrycioc(a,b,c,r,x):
 size = 1.0
 mid = size / 4
 radius = size / 8
-grid = fdtd.Grid("testGrid", (1.0, 1.0, 1.0), 4e-2)
+grid = Grid("testGrid", (1.0, 1.0, 1.0), 4e-2)
 # region conductor loop in the x plane
 xslice = slice(size / 2 - radius, size / 2 + radius)
 grid[xslice, mid - radius:mid + radius, mid - radius:size - mid + radius] \
