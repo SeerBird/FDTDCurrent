@@ -2,10 +2,7 @@ import numpy as np
 from numpy import ndarray
 
 from fdtd_fun import Grid, Conductor, Source
-
-
-def empty_starting_rho(r) -> ndarray:
-    return np.zeros_like(r[0])
+from main.util import perrycioc
 
 
 def my_emf(positions: ndarray, time: float):
@@ -13,8 +10,7 @@ def my_emf(positions: ndarray, time: float):
     res[2] = perrycioc(0,1,30e-10,5e9,time)
     return res
 
-def perrycioc(a,b,c,r,x):
-    return (a*np.exp(c*r)+b*np.exp(r*x))/(np.exp(c*r)+np.exp(r*x))
+
 
 
 size = 1.0
@@ -33,4 +29,4 @@ grid[xslice, mid + radius:size - mid - radius, mid - radius:mid + radius] \
     = Conductor("testConductor4", 8.5e28 * -1.6e-19, -1.6e-19 / 9e-31, 8e7)
 # endregion
 grid[xslice,mid-radius:mid+radius,size/2-radius:size/2+radius] = Source("testSource", my_emf)
-grid.run(empty_starting_rho, 200, True)
+grid.run(20, save = True)

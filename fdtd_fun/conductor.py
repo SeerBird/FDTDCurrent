@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 from .grid_object import GridObject
 
 
-class Conductor(GridObject, ABC):
+class Conductor(GridObject):
 
     def __init__(self, name: str, rho_f: float, s: float, sigma: float):
         """
@@ -33,3 +33,6 @@ class Conductor(GridObject, ABC):
         self.sigma = sigma #TODO: switch this to resistivity to make everything cleaner
         self.rho_f = rho_f
         self.s = s
+
+    def _validate_position(self, x: Key, y: Key, z: Key):
+        pass

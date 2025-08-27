@@ -252,7 +252,6 @@ class Grid:
     def __getstate__(self):
         _dict = self.__dict__.copy()
         _dict.pop("file")
-        _dict.pop("b")
         return _dict
 
     # endregion

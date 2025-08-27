@@ -18,7 +18,9 @@ class Field(Enum):
     E = 0
     B = 1
     J = 2
-    rho = -1  # only use this in detectors?
+    # only use these in detectors? find a way to make this nicer perhaps
+    rho = -1
+    V = -2
 
 class Comp(Enum):
     x = 0

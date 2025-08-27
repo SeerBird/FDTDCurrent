@@ -10,17 +10,16 @@ from fdtd_fun.typing_ import Field, Comp
 if TYPE_CHECKING:
     from fdtd_fun import Grid
 
-fieldsToCheck = [Field.E, Field.B, Field.J]
-fieldNames = {Field.E: "E", Field.B: "B", Field.J: "J"}
+fieldsToCheck = [Field.E, Field.B, Field.J, Field.V]
+fieldNames = {Field.E: "E", Field.B: "B", Field.J: "J", Field.V:"V"}
 components = [Comp.x, Comp.y, Comp.z]
 compNames = {Comp.x: "x", Comp.y: "y", Comp.z: "z"}
-fieldColors = {Field.E: "b", Field.B: "r", Field.J: "y"}
+fieldColors = {Field.E: "b", Field.B: "r", Field.J: "o", Field.V:"y"}
 
 
 def animate(grid: Grid, time: float = 4.0, preferredRatio: float = 0.7):
     fig = plt.figure()
     ims = []
-    grid.load_next_frame()
     detectors = {}
     total: int = 0
     frames = 0
@@ -58,6 +57,11 @@ def animate(grid: Grid, time: float = 4.0, preferredRatio: float = 0.7):
             names.append(f"{name}:Jy")
             names.append(f"{name}:Jz")
             total += 4
+        if det.V is not None:
+            fields[Field.V] = True
+            names.append(f"{name}:V")
+            total+=1
+
     # endregion
     # region get layout
     xn: int = 1
@@ -89,6 +93,11 @@ def animate(grid: Grid, time: float = 4.0, preferredRatio: float = 0.7):
                 if fields.get(f):
                     field = det.__getattribute__(fieldNames[f])
                     if len(shapeList) == 1:
+                        if f==Field.V: #kinda messy, clean up if we get more scalar fields
+                            frameArtists += ax[subplotCounter].plot(indexes[:-1],
+                                                                    field.reshape(shapeList[0]-1), fieldColors[f])
+                            subplotCounter += 1
+                            continue
                         frameArtists += ax[subplotCounter].plot(indexes,
                                                                 ((field[0] ** 2 + field[1] ** 2 + field[2] ** 2) ** 0.5)
                                                                 .reshape(shapeList),fieldColors[f])

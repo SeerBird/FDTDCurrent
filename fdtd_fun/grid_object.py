@@ -1,13 +1,13 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 
 if TYPE_CHECKING:
     from .grid import Grid
     from .typing_ import Key
 
 
-class GridObject:
+class GridObject(ABC):
     def __init__(self, name: str):
         self.name = name # name, unique per grid
         self._grid: Grid # the grid this grid object is registered with
