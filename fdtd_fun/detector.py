@@ -57,6 +57,6 @@ class Detector(GridObject):
             positions = np.moveaxis(self._grid[self.x,self.y,self.z],0,-1).reshape((-1,3))*self._grid.ds
             E = (E[1:] + E[:-1]) / 2
             distances = positions[1:]-positions[:-1]
-            self.V = np.cumsum(E[:,0]*distances[:,0]+E[:,1]*distances[:,1]+E[:,2]*distances[:,2])
+            self.V = np.cumsum(-E[:,0]*distances[:,0]-E[:,1]*distances[:,1]-E[:,2]*distances[:,2])
 
         # TODO: decide if we want to spend time copying from views

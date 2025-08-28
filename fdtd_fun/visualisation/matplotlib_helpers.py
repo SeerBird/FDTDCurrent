@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any, Iterable, Callable, Sequence
 
 import numpy as np
@@ -9,20 +10,24 @@ from fdtd_fun.typing_ import Field, Comp
 
 if TYPE_CHECKING:
     from fdtd_fun import Grid
-
+logger = logging.getLogger(__name__)
 fieldsToCheck = [Field.E, Field.B, Field.J, Field.V]
 fieldNames = {Field.E: "E", Field.B: "B", Field.J: "J", Field.V:"V"}
 components = [Comp.x, Comp.y, Comp.z]
 compNames = {Comp.x: "x", Comp.y: "y", Comp.z: "z"}
-fieldColors = {Field.E: "b", Field.B: "r", Field.J: "o", Field.V:"y"}
+fieldColors = {Field.E: "b", Field.B: "r", Field.J: "m", Field.V:"y"}
 
 
-def animate(grid: Grid, time: float = 4.0, preferredRatio: float = 0.7):
+def animate(grid: Grid, time: float = 4.0,fps:int = 30, preferredRatio: float = 0.7):
+    if grid.file is None or grid.tot_frames is None:
+        raise ValueError("This Grid doesn't seem to have been loaded from a file - please use Grid.load_from_file()")
     fig = plt.figure()
     ims = []
     detectors = {}
-    total: int = 0
-    frames = 0
+    totSubplots: int = 0
+    tot_frames = int(time*fps)
+    frame_step = float(grid.tot_frames)/tot_frames
+    frame = 0
     names: list[str] = []
     # region set up data template
     for name, det in grid.detectors.items():
@@ -42,36 +47,36 @@ def animate(grid: Grid, time: float = 4.0, preferredRatio: float = 0.7):
             names.append(f"{name}:Ex")
             names.append(f"{name}:Ey")
             names.append(f"{name}:Ez")
-            total += 4
+            totSubplots += 4
         if det.B is not None:
             fields[Field.B] = True
             names.append(f"{name}:B")
             names.append(f"{name}:Bx")
             names.append(f"{name}:By")
             names.append(f"{name}:Bz")
-            total += 4
+            totSubplots += 4
         if det.J is not None:
             fields[Field.J] = True
             names.append(f"{name}:J")
             names.append(f"{name}:Jx")
             names.append(f"{name}:Jy")
             names.append(f"{name}:Jz")
-            total += 4
+            totSubplots += 4
         if det.V is not None:
             fields[Field.V] = True
             names.append(f"{name}:V")
-            total+=1
+            totSubplots+=1
 
     # endregion
     # region get layout
     xn: int = 1
     yn: int = 1
-    while xn * yn < total:
+    while xn * yn < totSubplots:
         if np.abs(np.log((xn + 1) / yn / preferredRatio)) < np.abs(np.log(xn / (yn + 1) / preferredRatio)):
             xn += 1
         else:
             yn += 1
-    for j in range(total):
+    for j in range(totSubplots):
         fig.add_subplot(xn, yn, j + 1)
     ax = fig.get_axes()
     # endregion
@@ -80,7 +85,7 @@ def animate(grid: Grid, time: float = 4.0, preferredRatio: float = 0.7):
         ax[i].set_title(names[i])
     # endregion
     while True:
-        frames += 1
+        logger.debug(f"Frame {frame}")
         frameArtists = []
         # region draw
         subplotCounter = 0
@@ -117,11 +122,21 @@ def animate(grid: Grid, time: float = 4.0, preferredRatio: float = 0.7):
                                                                           origin='lower'))
                             subplotCounter += 1
         # endregion
-        fig.tight_layout()
+        titletext = f"Time: {int(grid.time()*1e9)} ns"
+        ttl = plt.text(0.5, 1,titletext , horizontalalignment='center', verticalalignment='top',
+                       transform=plt.gcf().transFigure)
+        frameArtists.append(ttl)
         ims.append(frameArtists)
-        if not grid.load_next_frame():
-            break
+        frame += 1
+        while frame * frame_step>grid.t:
+            if not grid.load_next_frame():
+                break
+        else:
+            continue
+        break # only reachable if the inner loop is broken out of
 
-    ani = animation.ArtistAnimation(fig, ims, interval=1, blit=True, repeat_delay=1000)
+    logger.debug("Creating animation")
+    ani = animation.ArtistAnimation(fig, ims, blit=True, repeat_delay=1000)
     fig.tight_layout()
-    ani.save(f"ani{grid.name}.mp4", dpi=300, fps=frames / time)
+    logger.debug("Saving animation to a file")
+    ani.save(f"ani{grid.name}.mp4", dpi=300, fps = fps)

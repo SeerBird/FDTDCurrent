@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import logging
 from typing import Callable
 
 import numpy as np
@@ -16,6 +18,8 @@ from .conductor import Conductor
 from .source import Source
 from .typing_ import Key, Field, Comp
 
+logger = logging.getLogger(__name__)
+
 
 class Grid:
     """
@@ -32,8 +36,9 @@ class Grid:
         :param ds: the spacial step of the grid, in meters
         :param courant: the courant number for the simulation
         """
-        self.file = None
-        self.save_path = None
+        self.file = None # is not None if this Grid is saving to a file or was loaded from a file
+        self.save_path = None # is not None if this Grid was loaded from a file
+        self.tot_frames = None # is not None if this Grid was loaded from a file
         self.name: str = name
         self.detectors: dict[str, Detector] = {}
         self.conductors: dict[str, Conductor] = {}
@@ -60,7 +65,7 @@ class Grid:
             self.courant = float(courant)
         # endregion
         self.dt = self.ds * self.courant / const.c
-        print(f"Timestep: {self.dt:.2E} s")  # TODO: add proper logging
+        logger.info(f"Timestep: {self.dt:.2E} s")
         self.inner_indices: ndarray = np.indices(self.shape, int)
         self.boundary_indices: ndarray = (np.indices((self.Nx + 2, self.Ny + 2, self.Nz + 2)).reshape((3, -1))
                                           - np.asarray((1, 1, 1), int)[:, None])
@@ -184,9 +189,11 @@ class Grid:
             pickle.dump(self, self.file, protocol=-1)
         if isinstance(time, float):
             time = int(time / self.dt)
+        logger.info(f"Running grid for {time} steps, {time*self.dt:.3E} s")
         self.Sprev = np.zeros(self.dof)
         self._prep_solver()
         while self.t < time:
+            logger.debug(f"Step {self.t}")
             if trigger is not None:
                 for _, det in self.detectors.items():
                     det.read()
@@ -208,15 +215,29 @@ class Grid:
         :param save_path: yep.
         :return: new Grid object loaded from the file
         """
+        # region get total frames... this is painful
+        logger.debug("Getting total frames")
         file = open(save_path, "rb")
         grid = pickle.load(file)
-        if isinstance(grid, Grid):
-            grid.file = file
-            grid.save_path = save_path
-            # maybe check out persistent ID pickle stuff
-            return grid
-
-        raise Exception("haha")
+        if not isinstance(grid, Grid):
+            raise ValueError(f"Expected Grid object as second pickle in save file, got {type(grid)}")
+        grid.file = file
+        grid.save_path = save_path
+        while grid.load_next_frame():
+            pass
+        tot_frames = grid.t+1
+        # endregion
+        # maybe check out persistent ID pickle stuff
+        logger.debug("Loading grid from file")
+        file.close()
+        file = open(save_path, "rb")
+        grid = pickle.load(file)
+        if not isinstance(grid, Grid):
+            raise ValueError(f"Expected Grid object as second pickle in save file, got {type(grid)}")
+        grid.file = file
+        grid.save_path = save_path
+        grid.tot_frames = tot_frames
+        return grid
 
     def load_next_frame(self) -> bool:
         if self.file is None or not self.file.mode == "rb":
@@ -259,6 +280,7 @@ class Grid:
     # region step stuff
 
     def _prep_solver(self):
+        logger.debug("Prepping matrices")
         # TODO: is there a way to easily optimise this? probably doesn't matter though as
         #  this is negligible in comparison to running the sim
         raveler = np.zeros((*self.shape, 3, 3), int) - 1  # should not ever index the -1s
@@ -368,6 +390,7 @@ class Grid:
             # endregion
 
         # endregion
+        logger.debug("Factorising matrices")
         self.solver = factorized(I - A - H @ R)
         self.B = I + A + H @ R
 
