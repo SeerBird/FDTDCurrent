@@ -79,7 +79,7 @@ class Grid:
         self.B: dia_array  # converts S to b_linear, square
         self.solver: Callable[[np.ndarray], np.ndarray] # solves the matrix equation for the step
         # region stored state
-        self.State: ndarray = np.zeros((*self.shape, 3, 3))
+        self.State: ndarray = np.zeros((*self.shape, 3, 3)) # x,y,z,Field,Comp
         self.dof: int = self.Nx * self.Ny * self.Nz * 2 * 3  # degrees of freedom, this will increase as conductors are added
         self.EBdof: int = self.dof  # electric and magnetic field degrees of freedom
         self.Sprev: ndarray  # previous state [Nx*Ny*Nz*2*3 + NJ*3]
@@ -174,8 +174,8 @@ class Grid:
         # endregion
         return self.inner_indices[:, x, y, z]
 
-    def _get_value(self, field: Field, x: Key, y: Key, z: Key):
-        return np.moveaxis(self.State[x, y, z, field.value], -1, 0)
+    def _get_subset(self, x: Key, y: Key, z: Key):
+        return np.moveaxis(self.State[x, y, z], [-1,-2], [1,0])
 
     # endregion
 
@@ -189,7 +189,7 @@ class Grid:
             pickle.dump(self, self.file, protocol=-1)
         if isinstance(time, float):
             time = int(time / self.dt)
-        logger.info(f"Running grid for {time} steps, {time*self.dt:.3E} s")
+        logger.info(f"Running grid of shape ({self.shape[0]}, {self.shape[1]}, {self.shape[2]}) for {time} steps, {time*self.dt:.3E} s")
         self.Sprev = np.zeros(self.dof)
         self._prep_solver()
         while self.t < time:
