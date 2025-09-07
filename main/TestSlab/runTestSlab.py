@@ -17,13 +17,14 @@ rho,s,sigma = copper_rho_s_sigma
 w = (-(s*rho/2/sigma)**2+s*rho/constants.eps_0)**0.5
 Q = s*rho*constants.eps_0/4/sigma**2 # just calling this Q, not checking if it is the quality factor
 T = 2*np.pi/w
-grid = Grid("testSlab", (5, 5, 5), dt = T/20)
-t = np.arange(200)*grid.dt
+grid = Grid("testSlab", (5, 5, 5), dt = T/200)
+t = np.arange(20000)*grid.dt
+finet = np.linspace(0,np.max(t),50000)
 #plt.plot(t,perrycioc(0,1,loc,slope,t))
 #plt.show()
 grid[:,:,:] = Conductor("testConductor1", *copper_rho_s_sigma)
 grid[:,:,:] = Source("testSource", my_emf)
-grid.run(200, save = True)
+grid.run(20000, save = True)
 
 def prediction(t):
     return np.exp(-s*rho/2/sigma*t)*s*rho*k/w*np.sin(w*t)
@@ -48,7 +49,7 @@ while True:
 t = np.asarray(t)
 plt.subplot(1,2,1)
 plt.plot(t,Jz,"b", label = "Data")
-plt.plot(t,prediction(t),"r", label = "Predicted")
+plt.plot(finet,prediction(finet),"r", label = "Predicted")
 plt.title("Jz")
 plt.subplot(1,2,2)
 plt.plot(t,Ez)

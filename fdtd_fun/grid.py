@@ -189,8 +189,26 @@ class Grid:
             time = int(time / self.dt)
         logger.info(
             f"Running grid of shape ({self.shape[0]}, {self.shape[1]}, {self.shape[2]}) for {time} steps, {time * self.dt:.3E} s")
-        self.Sprev = np.zeros(self.dof)
         self._prep_solver()
+        # region find Sprev using an Euler step
+        self.Sprev = np.zeros(self.dof)
+        # TODO: make this more general as currently a lot of stuff is assumed zero and code is copied...
+        # TODO: also consider doing a better step as this probably introduces more error
+        # region get and add G
+        G_J = np.zeros((*self.shape, 3))
+        # region get K
+        K = np.zeros((*self.shape, 3))
+        for _, src in self.sources.items():
+            K[src.x, src.y, src.z] += np.moveaxis(src.function(src.positions, self.time()), 0, -1)
+        # endregion
+        # region add K
+        for _, mat in self.conductors.items():
+            G_J[mat.x, mat.y, mat.z] += mat.s * mat.rho_f * K[mat.x, mat.y, mat.z]  # add K
+        # endregion
+        if self.cond_indices.size != 0:
+            self.Sprev[self.EBdof:] -= G_J[*self.cond_indices].reshape((-1)) * self.dt
+        # endregion
+        # endregion
         while self.t < time:
             if trigger is not None:
                 for _, det in self.detectors.items():
@@ -389,8 +407,9 @@ class Grid:
 
         # endregion
         logger.debug("Factorising matrices")
-        self.solver = factorized(I - A - H @ R)
-        self.B = I + A + H @ R
+        F = A + H @ R
+        self.solver = factorized(I - F)
+        self.B = I + F
 
     def _step(self):
         # region get b
