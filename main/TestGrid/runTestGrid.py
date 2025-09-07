@@ -11,8 +11,6 @@ def my_emf(positions: ndarray, time: float):
     return res
 
 
-
-
 size = 1.0
 mid = size / 4
 radius = size / 8

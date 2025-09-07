@@ -13,7 +13,7 @@ import numpy as np
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-class Observable(Enum):  # stupid name
+class Detectable(Enum):  # stupid name
     # components of vector fields or scalar fields
     E = Field.E
     Ex = (Field.E, Comp.x)
@@ -30,44 +30,44 @@ class Observable(Enum):  # stupid name
     V = "V"
 
 
-scalar_obss = [Observable.V]
-magnitudes = [Observable.E,Observable.B,Observable.J]
+scalar_obss = [Detectable.V]
+magnitudes = [Detectable.E, Detectable.B, Detectable.J]
 
 
 class Detector(GridObject):
-    def __init__(self, name: str, toRead: list[Observable]):
+    def __init__(self, name: str, toRead: list[Detectable]):
         """
         A detector GridObject that allows to repeatedly access the field values in an arbitrarily shaped portion of
          the grid.
         :param name: yup.
         :param toRead: a list of observables (scalar fields) to be read every time self.read() is called
         """
-        self._toRead: list[Observable] = toRead
+        self._toRead: list[Detectable] = toRead
         # noinspection PyTypeChecker
         self.values: list[ndarray] = [None] * len(toRead)
         super().__init__(name)
 
     def _validate_position(self, x: Key, y: Key, z: Key):
-        if self._toRead.__contains__(Observable.V):
+        if self._toRead.__contains__(Detectable.V):
             shape = self._grid[x, y, z].shape[1:]
             if len(shape) - shape.count(1) != 1:
                 logger.warning("Can only read potential with 1D detectors. I think.")
-                self._toRead.remove(Observable.V)
+                self._toRead.remove(Detectable.V)
 
     def read(self):
         """
         Each field is array of the shape (3, ...) where the latter part of the shape corresponds to the key used
          for assigning this detector to the grid.
         """
-        grid_subset = self._grid._get_subset(self.x,self.y,self.z)
+        grid_subset = self._grid[self.x,self.y,self.z]
         for i in range(len(self._toRead)):
             obs = self._toRead[i]
             if scalar_obss.__contains__(obs):
-                if obs==Observable.V:
+                if obs==Detectable.V:
                     # detector is assumed 1-D
                     E = grid_subset[Field.E.value]
                     E = np.moveaxis(E, 0, -1).reshape((-1, 3))
-                    positions = np.moveaxis(self._grid[self.x, self.y, self.z], 0, -1).reshape((-1, 3)) * self._grid.ds
+                    positions = np.moveaxis(self._grid._get_index(self.x, self.y, self.z), 0, -1).reshape((-1, 3)) * self._grid.ds
                     E = (E[1:] + E[:-1]) / 2
                     distances = positions[1:] - positions[:-1]
                     self.values[i] = np.cumsum(

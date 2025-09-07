@@ -25,7 +25,7 @@ class Source(GridObject):
 
     def _register_grid(self, grid: Grid, x: Key, y: Key, z: Key):
         super()._register_grid(grid, x, y, z)
-        self.positions = self._grid[self.x, self.y, self.z] * self._grid.ds
+        self.positions = self._grid._get_index(self.x, self.y, self.z) * self._grid.ds
 
     def _validate_position(self, x: Key, y: Key, z: Key):
         pass
