@@ -16,8 +16,11 @@ def errormodel(B, step):  # B = [A,exp]
 
 steps = np.linspace(T / 2000, T / 40, 10)
 errors = []
+spaceCompareTime =
+
+
 for stepsize in steps:
-    Jz, t = runSlab(stepsize, T,5,(0,0,0))
+    Jz, t = runSlab(stepsize, T,10,(0,0,0))
     expected = prediction(t)
     chi_abs = np.abs(expected - Jz)
     errors.append(np.max(chi_abs))
