@@ -8,52 +8,32 @@ from main.util import perrycioc, copper_rho_s_sigma
 slope = 1e18
 loc = -1e-18
 k = 1
+rho, s, sigma = copper_rho_s_sigma
+w = (-(s * rho / 2 / sigma) ** 2 + s * rho / constants.eps_0) ** 0.5
+Q = s * rho * constants.eps_0 / 4 / sigma ** 2  # just calling this Q, not checking if it is the quality factor
+T = 2 * np.pi / w
+
 def my_emf(positions: ndarray, time: float):
     res = np.zeros_like(positions, float)
     #res[2] = perrycioc(0,k,loc,slope,time)
     res[2] = k
     return res
-rho,s,sigma = copper_rho_s_sigma
-w = (-(s*rho/2/sigma)**2+s*rho/constants.eps_0)**0.5
-Q = s*rho*constants.eps_0/4/sigma**2 # just calling this Q, not checking if it is the quality factor
-T = 2*np.pi/w
-grid = Grid("testSlab", (5, 5, 5), dt = T/200)
-t = np.arange(20000)*grid.dt
-finet = np.linspace(0,np.max(t),50000)
-#plt.plot(t,perrycioc(0,1,loc,slope,t))
-#plt.show()
-grid[:,:,:] = Conductor("testConductor1", *copper_rho_s_sigma)
-grid[:,:,:] = Source("testSource", my_emf)
-grid.run(20000, save = True)
 
-def prediction(t):
-    return np.exp(-s*rho/2/sigma*t)*s*rho*k/w*np.sin(w*t)
-grid = Grid.load_from_file("testSlab.dat")
-J = []
-Jx = []
-Jy = []
-Jz = []
-Ez = []
-t = []
-while True:
-    sub = grid[2,2,2]
-    j = sub[2].reshape(3)
-    J.append((j[0]**2+j[1]**2+j[2]**2)**0.5)
-    Jx.append(j[0])
-    Jy.append(j[1])
-    Jz.append(j[2])
-    Ez.append(sub[0,2].reshape(1))
-    t.append(grid.time())
-    if not grid.load_next_frame():
-        break
-t = np.asarray(t)
-plt.subplot(1,2,1)
-plt.plot(t,Jz,"b", label = "Data")
-plt.plot(finet,prediction(finet),"r", label = "Predicted")
-plt.title("Jz")
-plt.subplot(1,2,2)
-plt.plot(t,Ez)
-plt.title("Ez")
-plt.tight_layout()
-plt.show()
+def runSlab(dt:float, steps:int|float, size:int, pos: tuple[int,int,int]):
+    grid = Grid("testSlab", (size,size,size), dt = dt)
+    grid[:,:,:] = Conductor("testConductor1", *copper_rho_s_sigma)
+    grid[:,:,:] = Source("testSource", my_emf)
+    Jz = []
+    t = []
+    def trigger():
+        sub = grid[pos]
+        j = sub[2].reshape(3)
+        Jz.append(j[2])
+        t.append(grid.time())
+    grid.run(steps, save = True, trigger = trigger)
+    return np.asarray(Jz), np.asarray(t)
+
+
+
+
 

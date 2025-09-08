@@ -45,7 +45,7 @@ obsColors = {
 }
 
 
-def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float = 0.7):
+def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float = 0.7, show = False):
     if grid.file is None or grid.tot_frames is None:
         raise ValueError("This Grid doesn't seem to have been loaded from a file - please use Grid.load_from_file()")
     fig = plt.figure()
@@ -58,7 +58,7 @@ def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float 
     # region set up data template
     for name, det in grid.detectors.items():
         det.read()
-        pos: np.ndarray = grid[det.x, det.y, det.z] * grid.ds  # shape = (3,...)
+        pos: np.ndarray = grid._get_index(det.x, det.y, det.z) * grid.ds  # shape = (3,...)
         shapeList = list(pos.shape[1:])
         while True:
             try:
@@ -116,26 +116,24 @@ def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float 
                                                   cmap="plasma", interpolation="none", origin='lower'))
                     subplotCounter += 1
         # endregion
-        titletext = f"Time: {grid.time() * 1e9:.1F} ns"
+        titletext = f"Time: {grid.time():.2E} s"
         ttl = plt.text(0.5, 1, titletext, horizontalalignment='center', verticalalignment='top',
                        transform=plt.gcf().transFigure)
         frameArtists.append(ttl)
         ims.append(frameArtists)
         frame += 1
-        while frame * frame_step > grid.t:
-            if not grid.load_next_frame():
-                break
-        else:
-            continue
-        break  # only reachable if the inner loop is broken out of
+        if not grid.load_next_frame():
+            break
 
     logger.info("Creating animation")
-    ani = animation.ArtistAnimation(fig, ims, blit=True, repeat_delay=1000)
+    ani = animation.ArtistAnimation(fig, ims, blit=True, repeat_delay=10)
     fig.tight_layout()
     logger.info("Saving animation to a file")
     ani.save(f"ani{grid.name}.mp4", dpi=300, fps=fps)
     grid._reload()
     logger.info("Reloaded grid to initial state")
+    if show:
+        plt.show()
 
 
 class ReadingOverTime:

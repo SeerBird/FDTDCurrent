@@ -28,7 +28,8 @@ class Grid:
       and then use the run() method below
     """
 
-    def __init__(self, name: str, shape: tuple[float | int, float | int, float | int], ds: float = None, dt:float = None):
+    def __init__(self, name: str, shape: tuple[float | int, float | int, float | int], ds: float = None,
+                 dt: float = None):
         """
         :param shape: the dimensions of the grid, a float|int 3-tuple. int values will be used as indexes,
          and float values will be converted to indexes using the ds value given
@@ -42,7 +43,7 @@ class Grid:
         self.detectors: dict[str, Detector] = {}
         self.conductors: dict[str, Conductor] = {}
         self.sources: dict[str, Source] = {}
-        self.ds: float # space step
+        self.ds: float  # space step
         self.dt: float  # time step
         self.t: int = 0  # current time index
         self.Nx, self.Ny, self.Nz = self._handle_tuple(shape)  # index dimensions of the grid
@@ -51,7 +52,7 @@ class Grid:
             raise ValueError("grid dimensions must be positive")
         # region determine the steps
         dim = int(self.Nx > 1) + int(self.Ny > 1) + int(self.Nz > 1)
-        if dim==0:
+        if dim == 0:
             max_courant = 1
         else:
             max_courant = const.stability * float(dim) ** (-0.5)
@@ -60,12 +61,12 @@ class Grid:
             raise ValueError("Please define a time step or a space step value (or both) for the Grid")
         if ds is None:
             self.dt = dt
-            self.ds = self.dt * const.c/max_courant
+            self.ds = self.dt * const.c / max_courant
         elif dt is None:
             self.ds = ds
-            self.dt = self.ds*max_courant/const.c
-        elif const.c*dt/ds > max_courant:
-            raise ValueError(f"Courant number (c*dt/ds) {const.c*dt/ds} is too high for "
+            self.dt = self.ds * max_courant / const.c
+        elif const.c * dt / ds > max_courant:
+            raise ValueError(f"Courant number (c*dt/ds) {const.c * dt / ds} is too high for "
                              f"a {dim}D simulation , have to use {max_courant} or lower")
         else:
             self.dt = dt
@@ -76,9 +77,9 @@ class Grid:
         self.boundary_indices: ndarray = (np.indices((self.Nx + 2, self.Ny + 2, self.Nz + 2)).reshape((3, -1))
                                           - np.asarray((1, 1, 1), int)[:, None])
         self.boundary_indices = self.boundary_indices[:,
-        ((self.boundary_indices[0] == -1) | (self.boundary_indices[0] == self.Nx + 1)) |
-        ((self.boundary_indices[1] == -1) | (self.boundary_indices[1] == self.Ny + 1)) |
-        ((self.boundary_indices[2] == -1) | (self.boundary_indices[2] == self.Nz + 1))]
+        ((self.boundary_indices[0] == -1) | (self.boundary_indices[0] == self.Nx)) |
+        ((self.boundary_indices[1] == -1) | (self.boundary_indices[1] == self.Ny)) |
+        ((self.boundary_indices[2] == -1) | (self.boundary_indices[2] == self.Nz))]
         self.cond_indices: ndarray = np.zeros(
             (3, 0), int)
         # self.R: csr_array  # converts S to boundary vector, rect
@@ -122,7 +123,8 @@ class Grid:
                     raise ValueError("Ndarrays passed in the grid indexing key must match in shape")
         # endregion
         x, y, z = self._handle_single_key(x), self._handle_single_key(y), self._handle_single_key(z)
-        return x,y,z
+        return x, y, z
+
     def __setitem__(self, key, obj):
         """
         Assign a GridObject to a subset of the grid
@@ -133,7 +135,7 @@ class Grid:
         """
         if not (isinstance(obj, GridObject)):
             raise TypeError("Grid only accepts GridObjects")
-        x,y,z = self.handle_key(key)
+        x, y, z = self.handle_key(key)
         obj._register_grid(
             grid=self,
             x=x,
@@ -169,7 +171,7 @@ class Grid:
         :return: state in the selected portion of the grid, (3,3,...) - shaped, with the first two indices being
          the field and the component
         """
-        x,y,z = self.handle_key(key)
+        x, y, z = self.handle_key(key)
         return np.moveaxis(self.State[x, y, z], [-1, -2], [1, 0])
 
     def _get_index(self, x: Key, y: Key, z: Key):
@@ -302,10 +304,11 @@ class Grid:
         raveler = np.zeros((*self.shape, 3, 3), int) - 1  # should not ever index the -1s
         raveler[:, :, :, :-1, :] = np.arange(self.EBdof).reshape((*self.shape, 2, 3))
         raveler[*self.cond_indices, Field.J.value, :] = np.arange(self.EBdof, self.dof).reshape((-1, 3))
+        self.raveler = raveler
         A = csr_array((self.dof, self.dof))  # S -> [dt * F]_from_free_state
         I = dia_array((self.dof, self.dof))  # identity.
         I.setdiag(1, 0)
-        R = self._get_reflecting_boundary()  # S -> boundary
+        R = self._get_wrap_boundary()  # S -> boundary
         # TODO: consider ignoring the boundary (effectively making it always fully reflective)
         # and then adding a PML(which would just be a change to A)
         H = csr_array(
@@ -339,7 +342,7 @@ class Grid:
 
         # region to E field
         # region curl B term
-        curlBValue = c**2 / 2 * self.dt/self.ds
+        curlBValue = c ** 2 / 2 * self.dt / self.ds
         # region dBz/dy - dBy/dz
         add_eq(inner, Field.E, Comp.x, Field.B, Comp.z, (0, 1, 0), curlBValue)
         add_eq(inner, Field.E, Comp.x, Field.B, Comp.z, (0, -1, 0), -curlBValue)
@@ -368,7 +371,7 @@ class Grid:
         # endregion
         # region to B field
         # region curl E term
-        curlEValue = -self.dt/self.ds / 2
+        curlEValue = -self.dt / self.ds / 2
         # region dEz/dy - dEy/dz
         add_eq(inner, Field.B, Comp.x, Field.E, Comp.z, (0, 1, 0), curlEValue)
         add_eq(inner, Field.B, Comp.x, Field.E, Comp.z, (0, -1, 0), -curlEValue)
@@ -410,6 +413,7 @@ class Grid:
         F = A + H @ R
         self.solver = factorized(I - F)
         self.B = I + F
+        del self.raveler
 
     def _step(self):
         # region get b
@@ -483,9 +487,42 @@ class Grid:
     # endregion
 
     # region boundaries - will probably get rid of this
+    def _add_border_eq(self, R, toIndices: ndarray,  toField: Field, toComp: Comp,
+                       fromIndices: ndarray,fromField: Field, fromComp: Comp, value: float):
+        R[self.ravelBIndices(toIndices,toField,toComp),self.raveler[*fromIndices,fromField.value,fromComp.value]] = value
 
     def _get_reflecting_boundary(self) -> csr_array:
-        return csr_array((self.boundary_indices.shape[1] * 2 * 3, self.dof))  # yummy empty matrix
+        R = csr_array((self.boundary_indices.shape[1] * 2 * 3, self.dof))  # yummy empty matrix
+        return R
+
+    def _get_wrap_boundary(self):
+        R = csr_array((self.boundary_indices.shape[1] * 2 * 3, self.dof))
+        colon = slice(None)
+        bi = self.boundary_indices
+        xlowb = bi[0]==-1
+        xhighb = bi[0]==self.Nx
+        ylowb = bi[1]==-1
+        yhighb = bi[1]==self.Ny
+        zlowb = bi[2]==-1
+        zhighb = bi[2]==self.Nz
+        xlow = self._get_index(0, colon, colon).reshape(3,-1)
+        xhigh = self._get_index(-1, colon, colon).reshape(3,-1)
+        ylow = self._get_index(colon, 0, colon).reshape(3,-1)
+        yhigh = self._get_index(colon, -1, colon).reshape(3,-1)
+        zlow = self._get_index(colon, colon, 0).reshape(3,-1)
+        zhigh = self._get_index(colon, colon, -1).reshape(3,-1)
+        toSides = [bi[:,xlowb &~ylowb&~yhighb&~zlowb&~zhighb],
+                   bi[:,xhighb &~ylowb&~yhighb&~zlowb&~zhighb],
+                   bi[:,ylowb &~xlowb&~xhighb&~zlowb&~zhighb],
+                   bi[:,yhighb &~xlowb&~xhighb&~zlowb&~zhighb],
+                   bi[:,zlowb &~xlowb&~xhighb&~ylowb&~yhighb],
+                   bi[:,zhighb &~xlowb&~xhighb&~ylowb&~yhighb]]
+        fromSides = [xhigh,xlow,yhigh,ylow,zhigh,zlow]
+        for i in range(len(toSides)):
+            for f in [Field.E,Field.B]:
+                for comp in [Comp.x,Comp.y,Comp.z]:
+                    self._add_border_eq(R,toSides[i],f,comp,fromSides[i],f,comp,1)
+        return R
 
     # endregion
 
