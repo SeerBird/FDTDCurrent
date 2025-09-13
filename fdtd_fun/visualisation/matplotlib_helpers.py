@@ -45,7 +45,7 @@ obsColors = {
 }
 
 
-def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float = 0.7, show = False):
+def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float = 0.7, show = False, save = True):
     if grid.file is None or grid.tot_frames is None:
         raise ValueError("This Grid doesn't seem to have been loaded from a file - please use Grid.load_from_file()")
     fig = plt.figure()
@@ -122,14 +122,19 @@ def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float 
         frameArtists.append(ttl)
         ims.append(frameArtists)
         frame += 1
-        if not grid.load_next_frame():
-            break
+        while frame * frame_step > grid.t:
+            if not grid.load_next_frame():
+                break
+        else:
+            continue
+        break  # only reachable if the inner loop is broken out of
 
     logger.info("Creating animation")
-    ani = animation.ArtistAnimation(fig, ims, blit=True, repeat_delay=10)
+    ani = animation.ArtistAnimation(fig, ims, blit=True, repeat_delay=10, interval = 1000/fps)
     fig.tight_layout()
-    logger.info("Saving animation to a file")
-    ani.save(f"ani{grid.name}.mp4", dpi=300, fps=fps)
+    if save:
+        logger.info("Saving animation to a file")
+        ani.save(f"ani{grid.name}.mp4", dpi=300, fps=fps)
     grid._reload()
     logger.info("Reloaded grid to initial state")
     if show:

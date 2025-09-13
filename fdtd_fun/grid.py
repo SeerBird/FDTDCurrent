@@ -551,6 +551,8 @@ class Grid:
             return self._handle_slice(key)
         elif isinstance(key, float | int):
             dist = self.handle_distance(key)
+            if dist<0:
+                return slice(dist,dist-1,-1)
             return slice(dist, dist + 1, 1)
         else:
             raise TypeError("key must be ndarray, slice, float, or int")

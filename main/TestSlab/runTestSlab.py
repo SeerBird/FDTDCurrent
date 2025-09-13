@@ -1,3 +1,6 @@
+import functools
+from typing import Callable
+
 import numpy as np
 from numpy import ndarray
 import matplotlib.pyplot as plt
@@ -19,19 +22,11 @@ def my_emf(positions: ndarray, time: float):
     res[2] = k
     return res
 
-def runSlab(dt:float, steps:int|float, size:int, pos: tuple[int,int,int]):
+def runSlab(dt:float, steps:int|float, size:int, trigger:Callable[[Grid], None]|None):
     grid = Grid("testSlab", (size,size,size), dt = dt)
     grid[:,:,:] = Conductor("testConductor1", *copper_rho_s_sigma)
     grid[:,:,:] = Source("testSource", my_emf)
-    Jz = []
-    t = []
-    def trigger():
-        sub = grid[pos]
-        j = sub[2].reshape(3)
-        Jz.append(j[2])
-        t.append(grid.time())
-    grid.run(steps, save = True, trigger = trigger)
-    return np.asarray(Jz), np.asarray(t)
+    grid.run(steps, save = True, trigger = None if trigger is None else functools.partial(trigger, grid))
 
 
 
