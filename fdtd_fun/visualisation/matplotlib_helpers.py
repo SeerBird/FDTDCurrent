@@ -45,7 +45,7 @@ obsColors = {
 }
 
 
-def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float = 0.7, show = False, save = True):
+def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float = 0.7, show = True, save = False):
     if grid.file is None or grid.tot_frames is None:
         raise ValueError("This Grid doesn't seem to have been loaded from a file - please use Grid.load_from_file()")
     fig = plt.figure()

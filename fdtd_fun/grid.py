@@ -310,7 +310,7 @@ class Grid:
         I.setdiag(1, 0)
         R = self._get_wrap_boundary()  # S -> boundary
         # TODO: consider ignoring the boundary (effectively making it always fully reflective)
-        # and then adding a PML(which would just be a change to A)
+        #  and then adding a PML(which would just be a change to A)
         H = csr_array(
             (self.dof, self.boundary_indices.shape[1] * 2 * 3))  # boundary -> [dt * F]_from_boundary_conditions
 
