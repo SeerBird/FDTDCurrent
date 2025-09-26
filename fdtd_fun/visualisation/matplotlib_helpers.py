@@ -7,6 +7,7 @@ import numpy as np
 from matplotlib import pyplot as plt, animation
 
 from fdtd_fun.detector import Detectable
+from fdtd_fun.mylogging import printProgressBar
 from fdtd_fun.typing_ import Field, Comp, Key
 
 if TYPE_CHECKING:
@@ -90,7 +91,7 @@ def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float 
             i += 1
     # endregion
     while True:
-        logger.debug(f"Frame {frame}")
+        printProgressBar(frame, tot_frames, prefix = "Animating grid")
         frameArtists = []
         # region draw
         subplotCounter = 0

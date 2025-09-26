@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import Callable
 
 import numpy as np
@@ -15,6 +16,7 @@ from .constants import c
 from .grid_object import GridObject
 from .detector import Detector
 from .conductor import Conductor
+from .mylogging import printProgressBar
 from .source import Source
 from .typing_ import Key, Field, Comp
 
@@ -191,7 +193,11 @@ class Grid:
             time = int(time / self.dt)
         logger.info(
             f"Running grid of shape ({self.shape[0]}, {self.shape[1]}, {self.shape[2]}) for {time} steps, {time * self.dt:.3E} s")
-        self._prep_solver()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            #warnings.resetwarnings()
+            #TODO: remove/add back above line to suppress/return spare efficiency warnings
+            self._prep_solver()
         # region find Sprev using an Euler step
         self.Sprev = np.zeros(self.dof)
         # TODO: make this more general as currently a lot of stuff is assumed zero and code is copied...
@@ -212,6 +218,7 @@ class Grid:
         # endregion
         # endregion
         while self.t < time:
+            printProgressBar(self.t,time)
             if trigger is not None:
                 for _, det in self.detectors.items():
                     det.read()

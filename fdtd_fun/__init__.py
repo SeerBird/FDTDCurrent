@@ -33,7 +33,9 @@ ch.setLevel(logging.DEBUG)
 ch.setFormatter(CustomFormatter())
 logger.addHandler(ch)
 logger.propagate = False
-# endregion
+#endregion
+
+from . import mylogging
 from .grid import Grid
 from .detector import Detector
 from .conductor import Conductor
