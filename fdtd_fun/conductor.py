@@ -7,8 +7,6 @@ import numpy as np
 from . import constants as const
 
 if TYPE_CHECKING:
-    from fdtd_fun import Grid
-    from numpy import ndarray
     from fdtd_fun.typing_ import Key
 
 from .grid_object import GridObject
@@ -35,4 +33,4 @@ class Conductor(GridObject):
         self.s = s
 
     def _validate_position(self, x: Key, y: Key, z: Key):
-        pass
+        pass #TODO: make sure all positions provided are unique

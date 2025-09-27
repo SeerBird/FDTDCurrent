@@ -3,13 +3,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 [project]
 name = "fdtd_fun" # obv change the name here but remember to change the package name in the file tree accordingly
-version = "0.0.5"
-dependencies = ["numpy","manim"]
+version = "0.0.6"
+dependencies = ["numpy","scipy"]
 authors = [
-  { name="SeerBird", email="ilya.govorunov@gmail.com" }, # everyone get your details on here at some point if you want
+  { name="SeerBird", email="ilya.govorunov@gmail.com" },
 ]
 description = "A 3D electromagnetic sim for small timescales or whatever"
-keywords = ["all kinds of words"]
+keywords = ["fdtd"]
 readme = "README.md"
 requires-python = ">=3.9"
 classifiers = [

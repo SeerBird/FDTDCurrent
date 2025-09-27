@@ -47,6 +47,15 @@ obsColors = {
 
 
 def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float = 0.7, show = True, save = False):
+    """
+
+    :param grid: The grid to animate, loaded from a file
+    :param time: length of the video, in seconds
+    :param fps: frames per second of the video
+    :param preferredRatio: preferred ratio of the space each subplot has on the figure
+    :param show: whether to show the animation upon creation
+    :param save: whether to save the animation to a file
+    """
     if grid.file is None or grid.tot_frames is None:
         raise ValueError("This Grid doesn't seem to have been loaded from a file - please use Grid.load_from_file()")
     fig = plt.figure()
@@ -67,7 +76,7 @@ def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float 
             except ValueError:
                 break
         detectors[det.name] = (pos, det, shapeList)
-        for obs in det._toRead:
+        for obs in det.toRead:
             totSubplots += 1
 
     # endregion
@@ -86,7 +95,7 @@ def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float 
     # region set titles and axes
     i = 0
     for _, det in grid.detectors.items():
-        for obs in det._toRead:
+        for obs in det.toRead:
             ax[i].set_title(f"{det.name}:{obs.name}")
             i += 1
     # endregion
@@ -99,8 +108,8 @@ def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float 
             det = myTuple[1]
             shapeList = myTuple[2]
             indexes = np.arange(shapeList[0])
-            for i in range(len(det._toRead)):
-                obs = det._toRead[i]
+            for i in range(len(det.toRead)):
+                obs = det.toRead[i]
                 value = det.values[i]
                 if len(shapeList) == 1:
                     if obs == Detectable.V:
@@ -141,47 +150,4 @@ def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float 
     if show:
         plt.show()
 
-
-class ReadingOverTime:
-    def __init__(self, ylabel: str, x: Key, y: Key, z: Key, toRead: list[Detectable],
-                 func: Callable[[np.ndarray, ...], float]):
-        # consider not using Detectable here as that is for detectors only and readings over time do not use detectors
-        """
-        :param x:
-        :param y:
-        :param z:
-        :param toRead:
-        :param func:
-        """
-        self.x = x
-        self.y = y
-        self.z = z
-        self.toRead = toRead
-        self.func = func
-        self.ylabel = ylabel
-
-
-def plotOverTime(grid: Grid, nframes: int, ncolumns: int = 4, *args: ReadingOverTime):
-    if grid.file is None or grid.tot_frames is None:
-        raise ValueError("This Grid doesn't seem to have been loaded from a file - please use Grid.load_from_file()")
-    if len(args) == 0:
-        raise ValueError("No ReadingOverTime objects supplied")
-    # region prep
-    fig = plt.figure()
-    nrows=1
-    while ncolumns*nrows<len(args):
-        nrows+=1
-    readings = [[]]*len(args)
-    for i in range(len(args)):
-        fig.add_subplot(nrows,ncolumns,i+1)
-    ax = fig.get_axes()
-    for i in range(len(args)):
-        reading:ReadingOverTime = args[i]
-        ax[i].set_ylabel(reading.ylabel)
-        ax[i].set_xlabel("Time, s")
-    timestep = float(grid.tot_frames) / nframes
-
-    # endregion
-    while True:
-        break # actually maybe I won't use this
 

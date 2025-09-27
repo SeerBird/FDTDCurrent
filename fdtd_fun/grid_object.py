@@ -11,7 +11,7 @@ class GridObject(ABC):
     def __init__(self, name: str):
         self.name = name # name, unique per grid
         self._grid: Grid # the grid this grid object is registered with
-        #TODO: make GridObjects support multiple key assignments (e.g. grid[lalala] = a and then grid[brrr] = a)
+        #TODO: potentially make GridObjects support multiple key assignments (e.g. grid[lalala] = a and then grid[brrr] = a)?
         self.x: Key # x,y,z are the index positions that make up the grid subset
         # which this grid object is registered with
         self.y: Key

@@ -38,30 +38,29 @@ class Detector(GridObject):
     def __init__(self, name: str, toRead: list[Detectable]):
         """
         A detector GridObject that allows to repeatedly access the field values in an arbitrarily shaped portion of
-         the grid.
+         the grid. Access Detector.values to read the field values corresponding to the detectables in toRead.
         :param name: yup.
-        :param toRead: a list of observables (scalar fields) to be read every time self.read() is called
+        :param toRead: a list of detectables (scalar fields) to be read every time self.read() is called
         """
-        self._toRead: list[Detectable] = toRead
+        self.toRead: list[Detectable] = toRead
         # noinspection PyTypeChecker
         self.values: list[ndarray] = [None] * len(toRead)
         super().__init__(name)
 
     def _validate_position(self, x: Key, y: Key, z: Key):
-        if self._toRead.__contains__(Detectable.V):
+        if self.toRead.__contains__(Detectable.V):
             shape = self._grid[x, y, z].shape[1:]
             if len(shape) - shape.count(1) != 1:
                 logger.warning("Can only read potential with 1D detectors. I think.")
-                self._toRead.remove(Detectable.V)
+                self.toRead.remove(Detectable.V)
 
     def read(self):
         """
-        Each field is array of the shape (3, ...) where the latter part of the shape corresponds to the key used
-         for assigning this detector to the grid.
+        Read current grid state into the detector
         """
         grid_subset = self._grid[self.x,self.y,self.z]
-        for i in range(len(self._toRead)):
-            obs = self._toRead[i]
+        for i in range(len(self.toRead)):
+            obs = self.toRead[i]
             if scalar_obss.__contains__(obs):
                 if obs==Detectable.V:
                     # detector is assumed 1-D

@@ -16,7 +16,7 @@ class Source(GridObject):
         """
 
         :param name: yeah.
-        :param function: function that, given a cartesian position ndarray (3,...), returns
+        :param function: function that, given a cartesian position ndarray (3,...) and a time in seconds, returns
          an emf vector ndarray of the same shape
         """
         super().__init__(name)
