@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from numpy import ndarray
 from enum import Enum
-from fdtd_fun.grid_object import GridObject
-from fdtd_fun.typing_ import Field, Key, Comp
+from fdtdcurrent.grid_object import GridObject
+from fdtdcurrent.typing_ import Field, Key, Comp
 import logging
 import numpy as np
 

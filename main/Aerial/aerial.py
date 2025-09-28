@@ -1,8 +1,8 @@
 import numpy as np
 
-from fdtd_fun import Grid, Conductor, Source, Detector
-from fdtd_fun.detector import Detectable
-from fdtd_fun.visualization import animate
+from fdtdcurrent import Grid, Conductor, Source, Detector
+from fdtdcurrent.detector import Detectable
+from fdtdcurrent.visualization import animate
 from main.Aerial.aerialConf import size
 from main.util import gaussian, copper_rho_s_sigma
 

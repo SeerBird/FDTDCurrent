@@ -1,6 +1,6 @@
-from fdtd_fun import Grid, Detector
-from fdtd_fun.detector import Detectable
-from fdtd_fun.visualization import animate
+from fdtdcurrent import Grid, Detector
+from fdtdcurrent.detector import Detectable
+from fdtdcurrent.visualization import animate
 
 grid = Grid.load_from_file("aerial.dat")
 grid[:,:,0] = Detector("zplane", [Detectable.E,Detectable.B])

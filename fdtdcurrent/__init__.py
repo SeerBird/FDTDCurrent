@@ -1,5 +1,5 @@
 """
-FDTD_FUN
+FDTDCurrent
 =====
 
 Provides

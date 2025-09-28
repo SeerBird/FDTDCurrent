@@ -6,12 +6,12 @@ from typing import TYPE_CHECKING, Any, Iterable, Callable, Sequence
 import numpy as np
 from matplotlib import pyplot as plt, animation
 
-from fdtd_fun.detector import Detectable
-from fdtd_fun.mylogging import printProgressBar
-from fdtd_fun.typing_ import Field, Comp, Key
+from fdtdcurrent.detector import Detectable
+from fdtdcurrent.mylogging import printProgressBar
+from fdtdcurrent.typing_ import Field, Comp, Key
 
 if TYPE_CHECKING:
-    from fdtd_fun import Grid
+    from fdtdcurrent import Grid
 logger = logging.getLogger(__name__)
 fieldsToCheck = [Field.E, Field.B, Field.J, Field.V]
 obsNames = {
