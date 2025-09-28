@@ -2,7 +2,7 @@ from matplotlib import pyplot as plt
 
 from fdtd_fun import Grid, Detector
 from fdtd_fun.detector import Detectable
-from fdtd_fun.visualisation import animate
+from fdtd_fun.visualization import animate
 from main.TestSlab.runTestSlab import runSlab, T
 
 size = 6

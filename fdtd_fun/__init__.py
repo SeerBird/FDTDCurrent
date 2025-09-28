@@ -1,3 +1,17 @@
+"""
+FDTD_FUN
+=====
+
+Provides
+  1. An fdtd simulation of the electromagnetic field and current density over a cuboid grid
+  2. A matplotlib visualization helper for the simulation
+
+>>>> say something about the readme I think? also obviously please rename the package
+
+Available subpackages
+---------------------
+visualization - visualization helpers for the simulation
+"""
 # region set up logging
 import logging
 import sys

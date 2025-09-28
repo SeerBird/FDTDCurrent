@@ -1,5 +1,5 @@
 from fdtd_fun import Grid,Detector, Field
-from fdtd_fun.visualisation import animate
+from fdtd_fun.visualization import animate
 d:int = 3
 grid = Grid.load_from_file("longPair.dat")
 #grid[:, (d*3)//2, :] = Detector("Section", [Field.J])

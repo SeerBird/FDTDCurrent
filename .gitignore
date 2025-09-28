@@ -7,7 +7,7 @@ release.ps1
 testGrid.dat
 /media
 main/slabMiddle.dat
-fdtd_fun/visualisation/__pycache__/matplotlib_helpers.cpython-312.pyc
+fdtd_fun/visualization/__pycache__/matplotlib_helpers.cpython-312.pyc
 *.pyc
 main/LongPair/longPair.dat
 main/LongPair/anilongPair.mp4
