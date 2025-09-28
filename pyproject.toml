@@ -2,7 +2,7 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 [project]
-name = "fdtd_fun" # obv change the name here but remember to change the package name in the file tree accordingly
+name = "fdtdcurrent" # obv change the name here but remember to change the package name in the file tree accordingly
 version = "0.0.7"
 dependencies = ["numpy","scipy"]
 authors = [

@@ -3,11 +3,11 @@ release.ps1
 /dist
 /.idea
 /tests
-/fdtd_fun/__pycache__
+/fdtdcurrent/__pycache__
 testGrid.dat
 /media
 main/slabMiddle.dat
-fdtd_fun/visualization/__pycache__/matplotlib_helpers.cpython-312.pyc
+fdtdcurrent/visualization/__pycache__/matplotlib_helpers.cpython-312.pyc
 *.pyc
 main/LongPair/longPair.dat
 main/LongPair/anilongPair.mp4

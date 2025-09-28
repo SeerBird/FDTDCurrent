@@ -1,7 +1,7 @@
 [build.targets.sdist]
 ignore-vcs = true
 include = [
-  "/fdtd_fun",
+  "/fdtdcurrent",
 ]
 
 [envs.test]
