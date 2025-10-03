@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-from fdtd_fun import Grid, Field
+from fdtdcurrent import Grid, Field
 from main.util import ODR
 from runTestSlab import k, runSlab, s, rho, sigma, w, T
 
@@ -31,14 +31,14 @@ for stepsize in steps:
     Jzmean = np.asarray(Jzmean)
     t = np.asarray(t)
     # region look at stuff
-    """
+    '''
     Jzsig = np.asarray(Jzsig)
     plt.title(f"Mean current at stepsize {stepsize:.2E} s")
     plt.plot(t,Jzmean)
     plt.xlabel("Time, s")
     plt.ylabel("Noise")
     plt.show()
-    """
+    '''
     # endregion
     noises.append(np.max(Jzsig))
     expected = prediction(t)

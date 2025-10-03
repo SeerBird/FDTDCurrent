@@ -49,7 +49,7 @@ class Detector(GridObject):
 
     def _validate_position(self, x: Key, y: Key, z: Key):
         if self.toRead.__contains__(Detectable.V):
-            shape = self._grid[x, y, z].shape[1:]
+            shape = self._grid._get_index(x,y,z).shape[1:]
             if len(shape) - shape.count(1) != 1:
                 logger.warning("Can only read potential with 1D detectors. I think.")
                 self.toRead.remove(Detectable.V)

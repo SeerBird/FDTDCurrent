@@ -16,9 +16,23 @@ from .constants import c
 from .grid_object import GridObject
 from .detector import Detector
 from .conductor import Conductor
-from .mylogging import printProgressBar
+from ._mylogging import printProgressBar
 from .source import Source
 from .typing_ import Key, Field, Comp
+from enum import Enum
+
+class Side(Enum):
+    xlow = 0
+    xhigh = 1
+    ylow = 2
+    yhigh = 3
+    zlow = 4
+    zhigh = 5
+
+class BoundaryType(Enum):
+    reflective = 0
+    wrap = 1
+
 
 logger = logging.getLogger(__name__)
 
@@ -48,16 +62,8 @@ class Grid:
         self.ds: float  # space step
         self.dt: float  # time step
         self.t: int = 0  # current time index
-        self.Nx, self.Ny, self.Nz = self._handle_tuple(shape)  # index dimensions of the grid
-        self.shape = (self.Nx, self.Ny, self.Nz)
-        if self.Nx < 1 or self.Ny < 1 or self.Nz < 1:
-            raise ValueError("grid dimensions must be positive")
         # region determine the steps
-        dim = int(self.Nx > 1) + int(self.Ny > 1) + int(self.Nz > 1)
-        if dim == 0:
-            max_courant = 1
-        else:
-            max_courant = const.stability * float(dim) ** (-0.5)
+        max_courant = const.stability * float(3) ** (-0.5) # pretend it's always 3D? whatever
         # TODO: do we care about the Courant–Friedrichs–Lewy condition now that we're doing Crank–Nicolson?
         if dt is None and ds is None:
             raise ValueError("Please define a time step or a space step value (or both) for the Grid")
@@ -69,12 +75,16 @@ class Grid:
             self.dt = self.ds * max_courant / const.c
         elif const.c * dt / ds > max_courant:
             raise ValueError(f"Courant number (c*dt/ds) {const.c * dt / ds} is too high for "
-                             f"a {dim}D simulation , have to use {max_courant} or lower")
+                             f"a 3D simulation , have to use {max_courant} or lower")
         else:
             self.dt = dt
             self.ds = ds
         # endregion
         logger.info(f"Timestep: {self.dt:.2E} s, space step: {self.ds:.2e} m")
+        self.Nx, self.Ny, self.Nz = self._handle_tuple(shape)  # index dimensions of the grid
+        self.shape = (self.Nx, self.Ny, self.Nz)
+        if self.Nx < 1 or self.Ny < 1 or self.Nz < 1:
+            raise ValueError("grid dimensions must be positive")
         self.inner_indices: ndarray = np.indices(self.shape, int)
         self.boundary_indices: ndarray = (np.indices((self.Nx + 2, self.Ny + 2, self.Nz + 2)).reshape((3, -1))
                                           - np.asarray((1, 1, 1), int)[:, None])
@@ -182,13 +192,14 @@ class Grid:
     # endregion
 
     def run(self, time: float | int, charge_dist: Callable[[ndarray], ndarray] = None, save: bool = False,
-            trigger: Callable = None):
+            trigger: Callable = None, boundary: dict[Side,BoundaryType] = None):
         """
         Run the Grid
         :param time: total time to run the Grid for, in seconds or steps
         :param charge_dist: the initial charge distribution, currently not used
         :param save: whether to save the simulation results to a file
         :param trigger: function to run before each step (plotting, saving a subset of the grid state etc.)
+        :param boundary: dictionary of boundary type for each side, leave unspecified for reflecting boundary
         """
         # TODO: consider actually using the starting charge distribution
         #  if we do we gotta find the starting fields, use antidivergence?
@@ -204,11 +215,12 @@ class Grid:
             warnings.simplefilter("ignore")
             # warnings.resetwarnings()
             # TODO: remove/add back above line to suppress/return spare efficiency warnings
-            self._prep_solver()
+            self._prep_solver(boundary)
         # region find Sprev using an Euler step
         self.Sprev = np.zeros(self.dof)
         # TODO: make this more general as currently a lot of stuff is assumed zero and code is copied...
         # TODO: also consider doing a better step as this probably introduces more error
+
         # region get and add G
         G_J = np.zeros((*self.shape, 3))  # wasteful
         # region get K
@@ -223,6 +235,7 @@ class Grid:
         if self.cond_indices.size != 0:
             self.Sprev[self.EBdof:] -= G_J[*self.cond_indices].reshape((-1)) * self.dt
         # endregion
+
         # endregion
         while self.t < time:
             printProgressBar(self.t, time)
@@ -318,7 +331,7 @@ class Grid:
 
     # region step stuff
 
-    def _prep_solver(self):
+    def _prep_solver(self, boundary:dict[Side, BoundaryType]):
         logger.debug("Prepping matrices")
         # TODO: is there a way to easily optimise this? probably doesn't matter though as
         #  this is often going to be negligible in comparison to running the sim
@@ -329,7 +342,15 @@ class Grid:
         A = csr_array((self.dof, self.dof))  # S -> [dt * F]_from_free_state
         I = dia_array((self.dof, self.dof))  # identity.
         I.setdiag(1, 0)
-        R = self._get_wrap_boundary()  # S -> boundary
+        # region get boundary
+        R = csr_array((self.boundary_indices.shape[1] * 2 * 3, self.dof)) # S -> boundary
+        if boundary is None:
+            boundary = {}
+        for side, bound in boundary.items():
+            if bound==BoundaryType.wrap:
+                self._set_wrap_boundary(R, side)
+        # endregion
+
         # TODO: consider ignoring the boundary (effectively making it always fully reflective)
         #  and then adding a PML(which would just be a change to A and H)
         #  or adding a customizable boundary(PML of varying thickness/wrap/reflect)
@@ -515,14 +536,10 @@ class Grid:
         R[self._ravelBIndices(toIndices, toField, toComp), self.raveler[
             *fromIndices, fromField.value, fromComp.value]] = value
 
-    def _get_reflecting_boundary(self) -> csr_array:
-        R = csr_array((self.boundary_indices.shape[1] * 2 * 3, self.dof))  # yummy empty matrix
-        return R
-
-    def _get_wrap_boundary(self):
-        R = csr_array((self.boundary_indices.shape[1] * 2 * 3, self.dof))
+    def _set_wrap_boundary(self,R:csr_array, side:Side):
         colon = slice(None)
         bi = self.boundary_indices
+        #TODO: consider not redoing this every time
         xlowb = bi[0] == -1
         xhighb = bi[0] == self.Nx
         ylowb = bi[1] == -1
@@ -542,11 +559,9 @@ class Grid:
                    bi[:, zlowb & ~xlowb & ~xhighb & ~ylowb & ~yhighb],
                    bi[:, zhighb & ~xlowb & ~xhighb & ~ylowb & ~yhighb]]
         fromSides = [xhigh, xlow, yhigh, ylow, zhigh, zlow]
-        for i in range(len(toSides)):
-            for f in [Field.E, Field.B]:
-                for comp in [Comp.x, Comp.y, Comp.z]:
-                    self._add_border_eq(R, toSides[i], f, comp, fromSides[i], f, comp, 1)
-        return R
+        for f in [Field.E, Field.B]:
+            for comp in [Comp.x, Comp.y, Comp.z]:
+                self._add_border_eq(R, toSides[side.value], f, comp, fromSides[side.value], f, comp, 1)
 
     # endregion
 

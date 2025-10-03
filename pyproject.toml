@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 [project]
 name = "fdtdcurrent" # obv change the name here but remember to change the package name in the file tree accordingly
 version = "0.0.1.4"
-dependencies = ["numpy>=2.3.3","scipy>=1.15.3"]
+dependencies = ["numpy>=2.3.3","scipy>=1.15.3", "matplotlib>=3.10.3"]
 authors = [
   { name="SeerBird", email="ilya.govorunov@gmail.com" },
 ]

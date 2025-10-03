@@ -7,7 +7,7 @@ import numpy as np
 from matplotlib import pyplot as plt, animation
 
 from fdtdcurrent.detector import Detectable
-from fdtdcurrent.mylogging import printProgressBar
+from fdtdcurrent._mylogging import printProgressBar
 from fdtdcurrent.typing_ import Field, Comp, Key
 
 if TYPE_CHECKING:

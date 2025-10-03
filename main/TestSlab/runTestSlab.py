@@ -5,7 +5,7 @@ import numpy as np
 from numpy import ndarray
 import matplotlib.pyplot as plt
 
-from fdtd_fun import Grid, Conductor, Source, constants
+from fdtdcurrent import *
 from main.util import perrycioc, copper_rho_s_sigma
 
 slope = 1e18
@@ -26,7 +26,13 @@ def runSlab(dt:float, steps:int|float, size:int, trigger:Callable[[Grid], None]|
     grid = Grid("testSlab", (size,size,size), dt = dt)
     grid[:,:,:] = Conductor("testConductor1", *copper_rho_s_sigma)
     grid[:,:,:] = Source("testSource", my_emf)
-    grid.run(steps, save = True, trigger = None if trigger is None else functools.partial(trigger, grid))
+    grid.run(steps, save = True, trigger = None if trigger is None else functools.partial(trigger, grid),
+             boundary = {
+                 Side.xlow: BoundaryType.wrap,
+                 Side.xhigh: BoundaryType.wrap,
+                 Side.ylow: BoundaryType.wrap,
+                 Side.yhigh: BoundaryType.wrap,
+             })
 
 
 
