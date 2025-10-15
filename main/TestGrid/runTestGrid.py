@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import ndarray
 
-from fdtdcurrent import Grid, Conductor, Source
+from fdtdcurrent import Grid, Conductor, Source, Side, BoundaryType
 from main.util import perrycioc
 
 perryargs = (0,1,30e-10,2e9)
@@ -14,7 +14,7 @@ def my_emf(positions: ndarray, time: float):
 size = 1.0
 mid = size / 4
 radius = size / 8
-grid = Grid("testGrid", (1.0, 1.0, 1.0), 5e-2)
+grid = Grid("testGrid", (21, 21, 21), 5e-2)
 # region conductor loop in the x plane
 xslice = slice(size / 2 - radius, size / 2 + radius)
 grid[xslice, mid - radius:mid + radius, mid - radius:size - mid + radius] \

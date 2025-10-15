@@ -28,10 +28,17 @@ class Detectable(Enum):  # stupid name
     Jy = (Field.J, Comp.y)
     Jz = (Field.J, Comp.z)
     V = "V"
+    divB = "divB"
 
 
-scalar_obss = [Detectable.V]
+scalar_obss = [Detectable.V, Detectable.divB]
 magnitudes = [Detectable.E, Detectable.B, Detectable.J]
+
+
+def _divergence(field):
+    return (field[2:, 1:-1, 1:-1, 0] - field[:-2, 1:-1, 1:-1, 0] +
+            field[1:-1, 2:, 1:-1, 1] - field[1:-1, :-2, 1:-1, 1] +
+            field[1:-1, 1:-1, 2:, 2] - field[1:-1, 1:-1, :-2, 2]) / 2
 
 
 class Detector(GridObject):
@@ -49,32 +56,47 @@ class Detector(GridObject):
 
     def _validate_position(self, x: Key, y: Key, z: Key):
         if self.toRead.__contains__(Detectable.V):
-            shape = self._grid._get_index(x,y,z).shape[1:]
+            shape = self._grid._get_index(x, y, z).shape[1:]
             if len(shape) - shape.count(1) != 1:
                 logger.warning("Can only read potential with 1D detectors. I think.")
                 self.toRead.remove(Detectable.V)
+        elif self.toRead.__contains__(Detectable.divB):
+            pos = self._grid._get_index(x, y, z)
+            subpos = pos[:, (pos[0] != 0) & (pos[0] != self._grid.Nx - 1) &
+                            (pos[1] != 0) & (pos[1] != self._grid.Ny - 1) &
+                            (pos[2] != 0) & (pos[2] != self._grid.Nz - 1)]
+            if pos.size != subpos.size:
+                message = "Detector reading divergence cannot extend to the outermost cells"
+                logger.error(message)
+                raise ValueError(message)
 
     def read(self):
         """
         Read current grid state into the detector
         """
-        grid_subset = self._grid[self.x,self.y,self.z]
+        grid_subset = self._grid[self.x, self.y, self.z]
         for i in range(len(self.toRead)):
             obs = self.toRead[i]
             if scalar_obss.__contains__(obs):
-                if obs==Detectable.V:
+                if obs == Detectable.V:
                     # detector is assumed 1-D
                     E = grid_subset[Field.E.value]
                     E = np.moveaxis(E, 0, -1).reshape((-1, 3))
-                    positions = np.moveaxis(self._grid._get_index(self.x, self.y, self.z), 0, -1).reshape((-1, 3)) * self._grid.ds
+                    positions = np.moveaxis(self._grid._get_index(self.x, self.y, self.z), 0, -1).reshape(
+                        (-1, 3)) * self._grid.ds
                     E = (E[1:] + E[:-1]) / 2
                     distances = positions[1:] - positions[:-1]
                     self.values[i] = np.cumsum(
                         -E[:, 0] * distances[:, 0] - E[:, 1] * distances[:, 1] - E[:, 2] * distances[:, 2])
+                elif obs == Detectable.divB:
+                    # trust position does not include outermost cells form validation
+                    div = np.zeros(self._grid.shape)
+                    div[1:-1, 1:-1, 1:-1] = _divergence(self._grid[:, :, :][Field.B.value])  # padded with zeros
+                    self.values[i] = div[self.x, self.y, self.z]/self._grid.ds
             elif magnitudes.__contains__(obs):
                 f = grid_subset[obs.value.value]
-                self.values[i] = (f[0]**2+f[1]**2+f[2]**2)**0.5
+                self.values[i] = (f[0] ** 2 + f[1] ** 2 + f[2] ** 2) ** 0.5
             else:
                 # noinspection PyUnresolvedReferences
-                self.values[i]=grid_subset[obs.value[0].value,obs.value[1].value]
+                self.values[i] = grid_subset[obs.value[0].value, obs.value[1].value]
         # TODO: decide if we want to spend time copying from views

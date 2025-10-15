@@ -273,7 +273,7 @@ class Grid:
         tot_frames = grid.t + 1
         # endregion
         # maybe check out persistent ID pickle stuff
-        logger.debug("Loading grid from file")
+        logger.debug(f"Loading grid with {tot_frames} frames from file")
         file.close()
         file = open(save_path, "rb")
         grid = pickle.load(file)
