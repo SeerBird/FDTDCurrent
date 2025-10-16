@@ -101,6 +101,7 @@ def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float 
     # endregion
     while True:
         printProgressBar(frame, tot_frames, prefix = "Animating grid")
+
         frameArtists = []
         # region draw
         subplotCounter = 0
@@ -126,10 +127,6 @@ def animate(grid: Grid, time: float = 4.0, fps: int = 30, preferredRatio: float 
                                                   cmap="plasma", interpolation="none", origin='lower'))
                     subplotCounter += 1
         # endregion
-        titletext = f"Time: {grid.time():.2E} s"
-        ttl = plt.text(0.5, 1, titletext, horizontalalignment='center', verticalalignment='top',
-                       transform=plt.gcf().transFigure)
-        frameArtists.append(ttl)
         ims.append(frameArtists)
         frame += 1
         while frame * frame_step > grid.t:

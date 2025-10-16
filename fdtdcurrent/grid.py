@@ -500,8 +500,7 @@ class Grid:
                     J_mat[*none_key, 2] * B_mat[*none_key, 0] - J_mat[*none_key, 0] * B_mat[*none_key, 2])
             G_J[mat.x, mat.y, mat.z, 2] += mat.s * (
                     J_mat[*none_key, 0] * B_mat[*none_key, 1] - J_mat[*none_key, 1] * B_mat[*none_key, 0])
-            G_J[mat.x, mat.y, mat.z] += -1 / self.ds / mat.rho_f * JnabJ[
-                mat.x, mat.y, mat.z]  # TODO: is this negligible?
+            G_J[mat.x, mat.y, mat.z] += -1 / self.ds / mat.rho_f * JnabJ[mat.x, mat.y, mat.z]  # TODO: is this negligible?
 
         # endregion
         if self.cond_indices.size != 0:

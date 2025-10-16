@@ -7,7 +7,7 @@ from main.util import perrycioc
 perryargs = (0,1,30e-10,2e9)
 def my_emf(positions: ndarray, time: float):
     res = np.zeros_like(positions, float)
-    res[2] = perrycioc(*perryargs,time) - perrycioc(*perryargs,0)
+    res[1] = perrycioc(*perryargs,time) - perrycioc(*perryargs,0)
     return res
 
 

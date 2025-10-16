@@ -36,9 +36,9 @@ magnitudes = [Detectable.E, Detectable.B, Detectable.J]
 
 
 def _divergence(field):
-    return (field[2:, 1:-1, 1:-1, 0] - field[:-2, 1:-1, 1:-1, 0] +
-            field[1:-1, 2:, 1:-1, 1] - field[1:-1, :-2, 1:-1, 1] +
-            field[1:-1, 1:-1, 2:, 2] - field[1:-1, 1:-1, :-2, 2]) / 2
+    return (field[0, 2:, 1:-1, 1:-1] - field[0, :-2, 1:-1, 1:-1] +
+            field[1, 1:-1, 2:, 1:-1] - field[1, 1:-1, :-2, 1:-1] +
+            field[2, 1:-1, 1:-1, 2:] - field[2, 1:-1, 1:-1, :-2]) / 2
 
 
 class Detector(GridObject):
@@ -92,7 +92,7 @@ class Detector(GridObject):
                     # trust position does not include outermost cells form validation
                     div = np.zeros(self._grid.shape)
                     div[1:-1, 1:-1, 1:-1] = _divergence(self._grid[:, :, :][Field.B.value])  # padded with zeros
-                    self.values[i] = div[self.x, self.y, self.z]/self._grid.ds
+                    self.values[i] = div[self.x, self.y, self.z] / self._grid.ds
             elif magnitudes.__contains__(obs):
                 f = grid_subset[obs.value.value]
                 self.values[i] = (f[0] ** 2 + f[1] ** 2 + f[2] ** 2) ** 0.5
