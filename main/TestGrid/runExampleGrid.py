@@ -1,8 +1,3 @@
-# FDTDCurrent
- This is a work-in-progress library to numerically model the redistribution of charge in a conductor over very short timescales (where the inertia of the charge carrier must be taken into account).
-Below is an example of the usage of the library:
-1. Run a grid
-```
 import numpy as np
 
 from fdtdcurrent import Grid, Conductor, Source, Detector
@@ -38,17 +33,3 @@ def trigger():
 
 
 grid.run(200, save=True)  # run the grid for 200 steps, saving the state at each step to a file
-```
-2. Plot the results
-```
-from fdtdcurrent import Grid, Detector
-from fdtdcurrent.detector import Detectable
-from fdtdcurrent.visualization import animate
-
-grid = Grid.load_from_file("ExampleGrid.dat")
-# the detector we added before running the grid gets restored when loading it from a file
-
-grid[1,1:-1,1:-1] = Detector("lowx", [Detectable.Bx]) # pick a subset of the grid to detect
-animate(grid, time=120, fps=1) # produce an animation of the detector values on the grid that
-# lasts 120 seconds with 1 frame per second
-```

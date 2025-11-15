@@ -268,6 +268,8 @@ class Grid:
             raise ValueError(f"Expected Grid object as second pickle in save file, got {type(grid)}")
         grid.file = file
         grid.save_path = save_path
+        for obj in [*grid.conductors.values(),*grid.detectors.values(),*grid.sources.values()]:
+            obj._grid = grid
         while grid.load_next_frame():
             pass
         tot_frames = grid.t + 1

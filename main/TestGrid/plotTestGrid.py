@@ -1,4 +1,4 @@
-from fdtdcurrent import Grid, Detector, Field
+from fdtdcurrent import Grid, Detector
 from fdtdcurrent.detector import Detectable
 from fdtdcurrent.visualization import animate
 
