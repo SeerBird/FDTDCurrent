@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt
 from fdtdcurrent import Grid, Detector
 from fdtdcurrent.detector import Detectable
 from fdtdcurrent.visualization import animate
-from main.TestSlab.runTestSlab import runSlab, T
+from examples.TestSlab.runTestSlab import runSlab, T
 
 runSlab(T/20,100,20,None)
 grid = Grid.load_from_file("testSlab.dat")

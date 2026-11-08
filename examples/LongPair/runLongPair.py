@@ -3,8 +3,8 @@ from functools import partial
 import numpy as np
 from numpy import ndarray
 
-from fdtd_fun import Grid, Conductor, Source
-from main.util import perrycioc, copper_rho_s_sigma, gaussian
+from fdtdcurrent import Grid, Conductor, Source
+from examples.util import perrycioc, copper_rho_s_sigma, gaussian
 import matplotlib.pyplot as plt
 
 func = partial(perrycioc, 0, 3e-9, 4e-8, 1e8, )

@@ -1,6 +1,32 @@
 # FDTDCurrent
- This is a work-in-progress library to numerically model the redistribution of charge in a conductor over very short timescales (where the inertia of the charge carrier must be taken into account).
-Below is an example of the usage of the library:
+
+A library for numerically modelling how charge redistributes in a conductor over very short timescales, where the inertia of the charge carriers must be taken into account. A curiosity project, now paused.
+
+```
+pip install fdtdcurrent
+```
+
+## Physics
+
+Ohm's law assumes the current responds instantly to the field. In copper, the carriers' momentum relaxation time is τ = mσ/(ne²) ≈ 25 fs, so that assumption fails on shorter timescales. Ohm's law even predicts that free charge leaves a conductor's interior in ε₀/σ ≈ 10⁻¹⁹ s, far shorter than τ itself. Instead of Ohm's law, this library evolves the current with a Drude-type momentum equation, including carrier inertia and a convective term, coupled to Maxwell's equations:
+
+```math
+\begin{aligned}
+\partial_t \mathbf{E} &= c^2\left(\nabla\times\mathbf{B} - \mu_0\mathbf{J}\right)\\
+\partial_t \mathbf{B} &= -\nabla\times\mathbf{E}\\
+\partial_t \mathbf{J} &= s\left(\rho_f(\mathbf{E}+\mathbf{K}) + \mathbf{J}\times\mathbf{B} - \frac{\rho_f}{\sigma}\mathbf{J}\right) - \frac{(\mathbf{J}\cdot\nabla)\mathbf{J}}{\rho_f}
+\end{aligned}
+```
+
+Here $s$ is the carriers' specific charge, $\rho_f$ the free-carrier charge density, $\sigma$ the conductivity, and $\mathbf{K}$ an applied EMF; the $\mathbf{J}$ equation applies only inside conductors. The fields live on a collocated grid and are stepped with a Crank–Nicolson leap-frog scheme: the linear terms are implicit, using a sparse solve, and the nonlinear terms are explicit. My rough derivation notes, written for my own use and unfinished, are in [`docs/derivation_notes.pdf`](docs/derivation_notes.pdf).
+
+The examples run on macroscopic grids (centimetre cells, nanosecond times), where inertia barely matters. At the femtosecond and nanometre scales where it does, effects this model leaves out also become important, such as the bound-electron response and nonlocality.
+
+![E, B and J in a square copper loop](docs/test_loop_frame.png)
+*Example run: a square copper loop with an EMF switched on in one side. The panels show the magnitudes of E, B and J in the plane of the loop, 5.8 ns after switch-on (axes in grid cells).*
+
+## Usage
+
 1. Run a grid
 ```
 import numpy as np

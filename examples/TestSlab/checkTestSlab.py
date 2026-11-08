@@ -2,7 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from fdtdcurrent import Grid, Field
-from main.util import ODR
+from examples.util import ODR
 from runTestSlab import k, runSlab, s, rho, sigma, w, T
 
 

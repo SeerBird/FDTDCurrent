@@ -1,7 +1,7 @@
 from fdtdcurrent import Grid, Detector
 from fdtdcurrent.detector import Detectable
 from fdtdcurrent.visualization import animate
-from main.Aerial.aerialConf import size, nsteps
+from examples.Aerial.aerialConf import size, nsteps
 
 detecting = Detectable.divB
 grid = Grid.load_from_file("aerial.dat")

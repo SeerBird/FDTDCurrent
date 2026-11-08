@@ -6,7 +6,7 @@ from numpy import ndarray
 import matplotlib.pyplot as plt
 
 from fdtdcurrent import *
-from main.util import perrycioc, copper_rho_s_sigma
+from examples.util import perrycioc, copper_rho_s_sigma
 
 slope = 1e18
 loc = -1e-18

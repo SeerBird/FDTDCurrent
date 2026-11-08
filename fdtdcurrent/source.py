@@ -2,8 +2,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
-    from fdtd_fun import Grid
-    from fdtd_fun.typing_ import Key
+    from fdtdcurrent import Grid
+    from fdtdcurrent.typing_ import Key
 
 import numpy as np
 from .grid_object import GridObject

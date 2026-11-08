@@ -1,9 +1,9 @@
 from matplotlib import pyplot as plt
 
-from fdtd_fun import Grid, Detector
-from fdtd_fun.detector import Detectable
-from fdtd_fun.visualization import animate
-from main.TestSlab.runTestSlab import runSlab, T
+from fdtdcurrent import Grid, Detector
+from fdtdcurrent.detector import Detectable
+from fdtdcurrent.visualization import animate
+from examples.TestSlab.runTestSlab import runSlab, T
 
 size = 6
 runSlab(T/20,100,size,None)

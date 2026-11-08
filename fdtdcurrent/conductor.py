@@ -7,7 +7,7 @@ import numpy as np
 from . import constants as const
 
 if TYPE_CHECKING:
-    from fdtd_fun.typing_ import Key
+    from fdtdcurrent.typing_ import Key
 
 from .grid_object import GridObject
 

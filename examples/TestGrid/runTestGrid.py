@@ -2,7 +2,7 @@ import numpy as np
 from numpy import ndarray
 
 from fdtdcurrent import Grid, Conductor, Source, Side, BoundaryType
-from main.util import perrycioc
+from examples.util import perrycioc
 
 perryargs = (0,1,30e-10,2e9)
 def my_emf(positions: ndarray, time: float):

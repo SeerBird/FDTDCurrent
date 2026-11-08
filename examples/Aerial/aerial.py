@@ -2,8 +2,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from fdtdcurrent import *
-from main.Aerial.aerialConf import size, nsteps, signal_resolution
-from main.util import gaussian, copper_rho_s_sigma, cos_peak
+from examples.Aerial.aerialConf import size, nsteps, signal_resolution
+from examples.util import gaussian, copper_rho_s_sigma, cos_peak
 
 signal_width = 1e-15 #s
 cospeakargs = (signal_width/1.7, signal_width, 1.0,)
